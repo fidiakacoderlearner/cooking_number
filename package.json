@@ -7,7 +7,10 @@
   "scripts": {
     "test": "node --test",
     "test:watch": "node --test --watch",
-    "inspect": "node scripts/inspect-puzzles.js"
+    "inspect": "node scripts/inspect-puzzles.js",
+    "smoke": "node scripts/smoke-ui.js",
+    "assets": "python scripts/make-placeholder-assets.py",
+    "check:imports": "node scripts/check-imports.js"
   },
   "engines": {
     "node": ">=20"

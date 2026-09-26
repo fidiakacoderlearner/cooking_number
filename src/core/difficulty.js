@@ -169,11 +169,14 @@ export function ordersForLevel(level) {
   return ORDERS_PER_LEVEL[level - 1];
 }
 
-/** Timer draft per mode, in seconds. To be calibrated during playtesting (PRD 5.5). */
+/**
+ * Seconds allowed per order, settled by the team. Kept short on purpose: these
+ * are the numbers to adjust first after playtesting (PRD 5.5).
+ */
 export const TIMER_SECONDS = Object.freeze({
-  [MODES.easy]: 60,
-  [MODES.medium]: 45,
-  [MODES.hard]: 35,
+  [MODES.easy]: 30,
+  [MODES.medium]: 20,
+  [MODES.hard]: 15,
 });
 
 export const LIVES_PER_LEVEL = 3;

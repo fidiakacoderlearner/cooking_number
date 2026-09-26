@@ -1,0 +1,495 @@
+/* layout.css - mobile-first structure, then a wider layout for tablet/desktop.
+   The phone layout is the source of truth; the desktop rules only relax it. */
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+.screen {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px;
+  padding-bottom: calc(12px + var(--safe-b));
+  gap: 10px;
+}
+
+.screen[hidden] {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- Menu */
+
+.screen--menu {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 20px;
+}
+
+.menu__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu__hat {
+  width: 72px;
+  height: 72px;
+}
+
+.menu__title {
+  font-size: clamp(1.75rem, 8vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--tomato);
+  text-shadow: 2px 2px 0 var(--ink);
+}
+
+.menu__tagline {
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  max-width: 22ch;
+}
+
+.menu__modes {
+  width: min(100%, 30rem);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu__heading {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin-bottom: 2px;
+}
+
+.menu__footer {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+/* -------------------------------------------------------- Level select */
+
+.levels__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.levels__title {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.levels__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+  width: min(100%, 30rem);
+}
+
+.level-card {
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  font-weight: 800;
+}
+
+.level-card__num {
+  font-size: 1.5rem;
+}
+
+.level-card__meta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* ----------------------------------------------------------------- HUD */
+
+.hud {
+  display: grid;
+  grid-template-columns: auto repeat(4, 1fr);
+  gap: 6px;
+  position: relative;
+  padding-bottom: 10px;
+}
+
+.hud__quit {
+  width: var(--tap-min);
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.hud__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 2px;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.hud__label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.hud__value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hud__lives {
+  display: flex;
+  gap: 2px;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.hud__timer.is-warning {
+  color: var(--tomato);
+}
+
+.hud__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  background: var(--plate-shade);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hud__progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--leaf);
+  transition: width 200ms linear;
+}
+
+.hud__progress-fill.is-warning {
+  background: var(--tomato);
+}
+
+/* -------------------------------------------------------------- Order */
+
+.order {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.order__customer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.order__portrait {
+  width: 52px;
+  height: 62px;
+  flex: none;
+}
+
+.order__bubble {
+  position: relative;
+  background: var(--plate);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.order__target {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.order__target-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.order__target-value {
+  font-size: clamp(1.6rem, 9vw, 2.2rem);
+  font-weight: 800;
+  color: var(--tomato);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+/* ------------------------------------------------------------ Counter */
+
+.counter {
+  display: flex;
+  justify-content: center;
+  background-image: url("../assets/placeholder/table.webp");
+  background-repeat: repeat-x;
+  background-position: bottom center;
+  background-size: auto 46px;
+  min-height: 62px;
+  padding-bottom: 6px;
+}
+
+.counter__plate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 148px;
+  min-height: var(--tap-min);
+  align-self: flex-end;
+  border: 3px dashed transparent;
+  border-radius: var(--radius);
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.counter__plate-img {
+  width: 128px;
+  opacity: 0.95;
+}
+
+.counter__plate-hint {
+  position: absolute;
+  bottom: -2px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--cream);
+  padding: 0 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.counter__plate.is-over {
+  border-color: var(--leaf);
+  transform: scale(1.04);
+}
+
+/* ---------------------------------------------------------- Workspace */
+
+.workspace {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 92px;
+  background: var(--plate);
+  border: var(--stroke) dashed var(--ink-soft);
+  border-radius: var(--radius);
+  padding: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.workspace.is-over {
+  border-color: var(--leaf);
+  border-style: solid;
+  background: #f2fbf0;
+}
+
+.workspace__line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 56px;
+  min-width: min-content;
+}
+
+.workspace__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 16px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+.workspace.has-content .workspace__empty {
+  display: none;
+}
+
+/* ------------------------------------------------------------ Running */
+
+.running {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--butter);
+  border: var(--stroke) solid var(--ink);
+  border-radius: 999px;
+  align-self: center;
+}
+
+.running[hidden] {
+  display: none;
+}
+
+.running__label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+}
+
+.running__value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------- Feedback */
+
+.feedback {
+  padding: 6px 10px;
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.feedback[hidden] {
+  display: none;
+}
+
+.feedback.is-good {
+  background: var(--leaf);
+  color: #fff;
+}
+
+.feedback.is-bad {
+  background: var(--tomato);
+  color: #fff;
+}
+
+.feedback.is-hint {
+  background: var(--plate-shade);
+  color: var(--ink);
+}
+
+/* ----------------------------------------------------------- Controls */
+
+.controls {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------- Rack */
+
+.rack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+}
+
+.rack__numbers,
+.rack__operators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.rack__operators {
+  padding-top: 8px;
+  border-top: 2px solid var(--plate-shade);
+}
+
+/* ------------------------------------------------------------- Wider */
+
+@media (min-width: 40rem) {
+  .screen {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .levels__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .workspace {
+    padding: 12px;
+  }
+}
+
+@media (min-width: 56rem) {
+  .screen--game {
+    max-width: 46rem;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .hud {
+    gap: 10px;
+  }
+
+  .hud__label {
+    font-size: 0.68rem;
+  }
+
+  .hud__value {
+    font-size: 1.2rem;
+  }
+
+  .order__portrait {
+    width: 64px;
+    height: 76px;
+  }
+}

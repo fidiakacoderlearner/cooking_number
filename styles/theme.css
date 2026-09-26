@@ -1,0 +1,356 @@
+/* theme.css - toon component styling: buttons, tiles, overlays.
+   Flat fills, one outline colour, hard offset shadows. No gradients. */
+
+.btn {
+  min-height: var(--tap-min);
+  padding: 8px 12px;
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard-sm);
+  font-weight: 800;
+  font-size: 0.9rem;
+  background: var(--paper);
+  transition: transform 90ms ease, box-shadow 90ms ease, background 120ms ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 0 var(--ink);
+}
+
+.btn--primary,
+.btn--serve {
+  background: var(--leaf);
+  color: #fff;
+}
+
+.btn--serve:disabled {
+  background: var(--plate-shade);
+  color: var(--ink-soft);
+  box-shadow: none;
+  transform: none;
+}
+
+.btn--ghost {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.btn--ghost:active:not(:disabled) {
+  background: var(--plate-shade);
+}
+
+/* ---------------------------------------------------------- Mode cards */
+
+.mode-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "name grade"
+    "detail grade"
+    "ops ops";
+  gap: 2px 8px;
+  align-items: center;
+  text-align: left;
+  padding: 12px;
+  min-height: 92px;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+
+.mode-card:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 0 var(--ink);
+}
+
+.mode-card__name {
+  grid-area: name;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.mode-card__grade {
+  grid-area: grade;
+  align-self: start;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--paper);
+  background: var(--sky);
+  padding: 3px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+}
+
+.mode-card__detail {
+  grid-area: detail;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.mode-card__ops {
+  grid-area: ops;
+  margin-top: 6px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--plate);
+  border: 2px solid var(--plate-shade);
+  border-radius: 6px;
+  padding: 3px 8px;
+  justify-self: start;
+}
+
+.mode-card[data-mode="medium"] .mode-card__grade {
+  background: var(--butter);
+  color: var(--ink);
+}
+
+.mode-card[data-mode="hard"] .mode-card__grade {
+  background: var(--tomato);
+}
+
+/* ---------------------------------------------------------- Lang toggle */
+
+.lang-toggle {
+  min-height: var(--tap-min);
+  padding: 8px 14px;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: 999px;
+  box-shadow: var(--shadow-hard-sm);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- Tiles */
+
+.tile {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  background: var(--plate);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard-sm);
+  font-weight: 800;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  touch-action: none;
+  transition: transform 90ms ease, box-shadow 90ms ease, opacity 120ms ease;
+}
+
+.tile--operator {
+  font-size: 1.3rem;
+  background: var(--sky);
+  color: #fff;
+  min-width: 52px;
+}
+
+.tile--unary {
+  background: var(--butter);
+  color: var(--ink);
+  min-width: 52px;
+  font-size: 1.15rem;
+}
+
+.tile--target {
+  background: var(--tomato);
+  color: #fff;
+}
+
+.tile:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--ink);
+}
+
+/* Unary tiles get a dashed inner ring so a one-slot operator never reads the
+   same way as a two-slot binary operator (PRD 5.3). */
+.tile--unary::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px dashed rgba(38, 42, 51, 0.45);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.tile--unary {
+  position: relative;
+}
+
+.tile.is-used {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.tile.is-selected {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 0 var(--ink);
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tile.is-dragging {
+  opacity: 0.9;
+  z-index: 30;
+}
+
+/* Workspace tiles are part of a built expression, so they read as one strip. */
+.slot {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  background: var(--plate);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  font-weight: 800;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  touch-action: none;
+  flex: none;
+}
+
+.slot--operator {
+  background: var(--sky);
+  color: #fff;
+  font-size: 1.3rem;
+}
+
+.slot--unary {
+  position: relative;
+  background: var(--butter);
+  font-size: 1.15rem;
+}
+
+.slot--unary::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px dashed rgba(38, 42, 51, 0.45);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.slot--result {
+  background: var(--leaf);
+  color: #fff;
+  font-size: 1.2rem;
+  box-shadow: var(--shadow-hard-sm);
+}
+
+.slot--result.is-low {
+  background: var(--sky-dark);
+}
+
+.slot.is-dragging {
+  opacity: 0.85;
+  z-index: 30;
+}
+
+.slot--dropzone {
+  min-width: 40px;
+  min-height: 40px;
+  border-style: dashed;
+  border-color: var(--ink-soft);
+  background: transparent;
+  box-shadow: none;
+  align-self: stretch;
+  margin: 8px 0;
+}
+
+.slot--dropzone.is-over {
+  border-style: solid;
+  border-color: var(--leaf);
+  background: #e9f7e6;
+}
+
+/* ------------------------------------------------------------- Overlay */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(38, 42, 51, 0.55);
+  z-index: 50;
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.overlay__card {
+  width: min(100%, 22rem);
+  background: var(--cream);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  padding: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.overlay__title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--tomato);
+}
+
+.overlay__text {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.overlay__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------- Toast */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + var(--safe-b));
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--cream);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  z-index: 60;
+  max-width: calc(100vw - 32px);
+  text-align: center;
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+/* -------------------------------------------------------- Life markers */
+
+.life {
+  color: var(--tomato);
+  font-size: 0.95rem;
+}
+
+.life.is-lost {
+  color: var(--plate-shade);
+}

@@ -1,0 +1,104 @@
+/* base.css - reset, typography, and shared custom properties.
+   Kept minimal on purpose: no framework, no build step. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--cream);
+  -webkit-font-smoothing: antialiased;
+  /* The whole game is tap-driven, so text selection only gets in the way. */
+  -webkit-user-select: none;
+  user-select: none;
+  /* Stop the rubber-band bounce revealing empty space behind the layout. */
+  overscroll-behavior-y: contain;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ol,
+ul {
+  list-style: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  /* Removes the 300ms delay some mobile browsers add to taps. */
+  touch-action: manipulation;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+:root {
+  /* Toon palette. Flat, solid, high-contrast, and small enough to stay consistent. */
+  --cream: #fff6e6;
+  --paper: #fffcf5;
+  --ink: #262a33;
+  --ink-soft: #5a6172;
+
+  --tomato: #e86a4e;
+  --tomato-dark: #c9523a;
+  --butter: #f7b733;
+  --butter-dark: #d9992a;
+  --leaf: #68a860;
+  --leaf-dark: #4f8a49;
+  --sky: #5684d6;
+  --sky-dark: #3f6cb8;
+
+  --plate: #fcfcfc;
+  --plate-shade: #dee0e4;
+
+  /* Flat toon look: one outline colour, one stroke width. */
+  --stroke: 3px;
+  --radius: 14px;
+  --radius-sm: 10px;
+
+  --focus: var(--sky);
+
+  --tap-min: 44px;
+
+  --shadow-hard: 0 4px 0 0 var(--ink);
+  --shadow-hard-sm: 0 3px 0 0 var(--ink);
+
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}

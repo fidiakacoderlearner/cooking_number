@@ -1,0 +1,19 @@
+{
+  "name": "Number Kitchen",
+  "short_name": "Number Kitchen",
+  "description": "Cook the number the customer ordered by combining tiles and operators.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff6e6",
+  "theme_color": "#fff6e6",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "assets/placeholder/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
