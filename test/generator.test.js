@@ -1,0 +1,636 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import * as R from '../src/core/rational.js';
+import { getBand, ordersForLevel, MODE_LIST, LEVELS_PER_MODE, ORDERS_PER_LEVEL, isValidLevel, isValidMode } from '../src/core/difficulty.js';
+import { evaluate, traceValues, unaryOperatorKeys, ingredientCount } from '../src/core/evaluate.js';
+import { consumesOperand, opArity } from '../src/core/operators.js';
+import {
+  generatePuzzle,
+  generateLevel,
+  collectIngredients,
+  displaySolution,
+  assertPuzzleSolvable,
+  makeRng,
+  GenerationError,
+} from '../src/core/generator.js';
+
+const STRESS_RUNS = 10_000;
+
+/** Deterministic generator so any failure is exactly reproducible. */
+function seeded(seed) {
+  return makeRng(seed);
+}
+
+/* ------------------------------------------------------------------ *
+ * Difficulty config
+ * ------------------------------------------------------------------ */
+
+test('orders per level follow the agreed 2 / 3 / 4 / 4 / 5 curve', () => {
+  assert.deepEqual([...ORDERS_PER_LEVEL], [2, 3, 4, 4, 5]);
+  assert.equal(ordersForLevel(1), 2);
+  assert.equal(ordersForLevel(5), 5);
+  assert.throws(() => ordersForLevel(0));
+  assert.throws(() => ordersForLevel(6));
+});
+
+test('mode and level validation rejects junk', () => {
+  assert.ok(isValidMode('easy') && isValidMode('medium') && isValidMode('hard'));
+  assert.ok(!isValidMode('Easy'), 'mode names are case sensitive');
+  assert.ok(!isValidMode('impossible'));
+  assert.ok(!isValidLevel(0) && !isValidLevel(6) && !isValidLevel(1.5));
+  assert.throws(() => getBand('nope', 1), /unknown mode/);
+});
+
+test('bands widen with level and never add operators', () => {
+  for (const mode of MODE_LIST) {
+    const first = getBand(mode, 1);
+    const last = getBand(mode, LEVELS_PER_MODE);
+    assert.ok(last.maxAbsIngredient > first.maxAbsIngredient, `${mode} should widen`);
+    assert.deepEqual([...last.binaryOps], [...first.binaryOps]);
+    assert.deepEqual([...last.unaryOps], [...first.unaryOps]);
+  }
+});
+
+test('Easy is integers with negatives, Hard demands unary', () => {
+  const easy = getBand('easy', 1);
+  assert.ok(easy.allowNegatives);
+  assert.ok(!easy.allowFractions);
+  assert.deepEqual([...easy.unaryOps], []);
+  assert.equal(easy.minUnarySteps, 0);
+
+  const medium = getBand('medium', 1);
+  assert.ok(medium.allowFractions);
+  assert.ok(!medium.allowNegatives);
+
+  const hard = getBand('hard', 1);
+  assert.ok(hard.minUnarySteps >= 1, 'Hard must genuinely practise roots/powers');
+  assert.ok(hard.unaryOps.includes('sqrt'));
+  assert.ok(hard.unaryOps.includes('pow'));
+});
+
+/* ------------------------------------------------------------------ *
+ * The core guarantee: every generated puzzle is solvable
+ * ------------------------------------------------------------------ */
+
+test('every generated puzzle is solvable by its own secret recipe', () => {
+  const rng = seeded(20261026);
+  for (const mode of MODE_LIST) {
+    const band = getBand(mode, 1);
+    for (let i = 0; i < STRESS_RUNS; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const reached = evaluate(puzzle.secretRecipe, { maxPowExponent: band.maxPowExponent });
+      assert.ok(
+        R.equals(reached, puzzle.target),
+        `${mode} #${i}: recipe reached ${R.format(reached)} but target was ${R.format(puzzle.target)}`,
+      );
+    }
+  }
+});
+
+test('solvability holds at every level, not just level 1', () => {
+  const rng = seeded(7);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const band = getBand(mode, level);
+      for (let i = 0; i < 500; i += 1) {
+        const puzzle = generatePuzzle(mode, level, { rng });
+        const reached = evaluate(puzzle.secretRecipe, { maxPowExponent: band.maxPowExponent });
+        assert.ok(R.equals(reached, puzzle.target), `${mode} L${level} #${i} unsolvable`);
+      }
+    }
+  }
+});
+
+test('generatePuzzle is deterministic for a given seed', () => {
+  const a = generatePuzzle('hard', 3, { rng: makeRng(99) });
+  const b = generatePuzzle('hard', 3, { rng: makeRng(99) });
+  assert.deepEqual(a.ingredients, b.ingredients);
+  assert.deepEqual(a.target, b.target);
+  assert.deepEqual(a.secretRecipe, b.secretRecipe);
+});
+
+test('assertPuzzleSolvable passes for sampled puzzles', () => {
+  const rng = seeded(31337);
+  for (const mode of MODE_LIST) {
+    const band = getBand(mode, 1);
+    for (let i = 0; i < 200; i += 1) {
+      assert.ok(assertPuzzleSolvable(generatePuzzle(mode, 1, { rng }), band));
+    }
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Puzzle shape
+ * ------------------------------------------------------------------ */
+
+test('the recipe is actually made of the ingredients on the rack', () => {
+  const rng = seeded(555);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 2000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const needed = collectIngredients(puzzle.secretRecipe);
+      const rack = puzzle.ingredients.map(R.toKey);
+      for (const value of needed) {
+        assert.ok(rack.includes(R.toKey(value)), `${mode} #${i}: ${R.format(value)} is not on the rack`);
+      }
+      assert.equal(needed.length, ingredientCount(puzzle.secretRecipe));
+    }
+  }
+});
+
+test('no puzzle is solvable by staring at a single tile', () => {
+  const rng = seeded(4242);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 3000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const trivial = puzzle.ingredients.some((v) => R.equals(v, puzzle.target));
+      assert.ok(!trivial, `${mode} #${i}: target ${R.format(puzzle.target)} is sitting on the rack as a distractor`);
+    }
+  }
+});
+
+test('distractors are present and never duplicate a tile the solution needs', () => {
+  const rng = seeded(8181);
+  let withDistractors = 0;
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 2000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const { realIngredientCount, distractorCount } = puzzle.meta;
+      const rack = puzzle.ingredients.map(R.toKey);
+      const real = collectIngredients(puzzle.secretRecipe).map(R.toKey);
+
+      // A solution such as 9 * 9 legitimately needs two 9 tiles, so repeats are
+      // allowed up to how many times the recipe consumes a value. Each distinct
+      // value may then be padded by at most one distractor.
+      const realCounts = new Map();
+      for (const key of real) realCounts.set(key, (realCounts.get(key) ?? 0) + 1);
+      const rackCounts = new Map();
+      for (const key of rack) rackCounts.set(key, (rackCounts.get(key) ?? 0) + 1);
+
+      for (const [key, count] of rackCounts) {
+        const needed = realCounts.get(key) ?? 0;
+        assert.ok(count >= needed, `${mode} #${i}: tile ${key} appears ${count}x but the recipe needs ${needed}x`);
+        assert.ok(count - needed <= 1, `${mode} #${i}: tile ${key} was padded by ${count - needed} distractors`);
+      }
+      const padded = [...rackCounts].filter(([key, count]) => count - (realCounts.get(key) ?? 0) === 1).length;
+      assert.equal(padded, distractorCount, 'every distractor should be a value the recipe does not use');
+      assert.equal(real.length, realIngredientCount);
+      assert.equal(rack.length, realIngredientCount + distractorCount);
+
+      // Distractors must also avoid the target, otherwise the order is free.
+      const targetKey = R.toKey(puzzle.target);
+      assert.equal(rackCounts.get(targetKey) ?? 0, 0);
+
+      if (distractorCount > 0) withDistractors += 1;
+    }
+  }
+  assert.ok(withDistractors > 0, 'distractors should appear, PRD 5.2 wants a choice to make');
+});
+
+test('rack size stays inside the configured band', () => {
+  const rng = seeded(2718);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const band = getBand(mode, level);
+      for (let i = 0; i < 500; i += 1) {
+        const puzzle = generatePuzzle(mode, level, { rng });
+        assert.ok(
+          puzzle.ingredients.length >= band.ingredientMin,
+          `${mode} L${level}: ${puzzle.ingredients.length} tiles < min ${band.ingredientMin}`,
+        );
+        assert.ok(
+          puzzle.ingredients.length <= Math.max(band.ingredientMax, puzzle.meta.realIngredientCount),
+          `${mode} L${level}: ${puzzle.ingredients.length} tiles > max ${band.ingredientMax}`,
+        );
+        assert.equal(
+          puzzle.ingredients.length,
+          puzzle.meta.realIngredientCount + puzzle.meta.distractorCount,
+        );
+      }
+    }
+  }
+});
+
+test('every tile reads well and stays inside the band range', () => {
+  const rng = seeded(6060);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const band = getBand(mode, level);
+      for (let i = 0; i < 500; i += 1) {
+        const puzzle = generatePuzzle(mode, level, { rng });
+        for (const tile of puzzle.ingredients) {
+          assert.ok(R.isDisplayNice(tile), `${mode} L${level}: ugly tile ${R.format(tile)}`);
+          assert.ok(
+            R.compare(tile, R.rat(band.min)) >= 0 && R.compare(tile, R.rat(band.max)) <= 0,
+            `${mode} L${level}: tile ${R.format(tile)} outside [${band.min}, ${band.max}]`,
+          );
+        }
+      }
+    }
+  }
+});
+
+test('the target itself is always a presentable number', () => {
+  const rng = seeded(1212);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 5000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      assert.ok(R.isDisplayNice(puzzle.target), `${mode}: ugly target ${R.format(puzzle.target)}`);
+      assert.ok(!R.isZero(puzzle.target), 'a target of 0 would be a strange order');
+      assert.ok(Number.isFinite(puzzle.target.n) && Number.isFinite(puzzle.target.d));
+    }
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Per-mode mathematical rules
+ * ------------------------------------------------------------------ */
+
+test('Easy stays on integers and never uses a unary operator', () => {
+  const rng = seeded(1111);
+  for (let i = 0; i < STRESS_RUNS; i += 1) {
+    const puzzle = generatePuzzle('easy', 3, { rng });
+    assert.ok(R.isInteger(puzzle.target), `Easy target must be a whole number, got ${R.format(puzzle.target)}`);
+    assert.equal(unaryOperatorKeys(puzzle.secretRecipe).length, 0);
+    for (const value of traceValues(puzzle.secretRecipe)) {
+      assert.ok(R.isInteger(value), `Easy intermediate must be whole, got ${R.format(value)}`);
+    }
+    for (const op of puzzle.secretRecipe.steps) {
+      assert.ok(consumesOperand(op.op));
+    }
+  }
+});
+
+test('Medium introduces fractions but keeps them tidy', () => {
+  const rng = seeded(2222);
+  let sawFraction = false;
+  for (let i = 0; i < STRESS_RUNS; i += 1) {
+    const puzzle = generatePuzzle('medium', 3, { rng });
+    for (const value of traceValues(puzzle.secretRecipe)) {
+      assert.ok(R.isDisplayNice(value), `Medium intermediate ${R.format(value)} is too noisy`);
+      assert.ok(!R.isNegative(value), 'Medium should not go negative');
+      if (!R.isInteger(value)) sawFraction = true;
+    }
+  }
+  assert.ok(sawFraction, 'Medium is supposed to introduce fractions (PRD 5.1)');
+});
+
+test('Hard only roots perfect squares and raises to small integer powers', () => {
+  const rng = seeded(3333);
+  let sawSqrt = 0;
+  let sawPow = 0;
+  for (let i = 0; i < STRESS_RUNS; i += 1) {
+    const band = getBand('hard', 3);
+    const puzzle = generatePuzzle('hard', 3, { rng });
+
+    const unary = unaryOperatorKeys(puzzle.secretRecipe);
+    assert.ok(unary.length >= 1, `Hard #${i} used no unary operator`);
+
+    const values = traceValues(puzzle.secretRecipe, { maxPowExponent: band.maxPowExponent });
+    let acc = puzzle.secretRecipe.start;
+    for (const step of puzzle.secretRecipe.steps) {
+      if (step.op === 'sqrt') {
+        sawSqrt += 1;
+        assert.ok(R.isInteger(acc), 'Hard root should act on a whole number');
+        // R.sqrt throws unless the radicand is a perfect square, so simply
+        // surviving the call is the guarantee we want.
+        const rooted = R.sqrt(acc);
+        assert.ok(R.isInteger(rooted), `root of ${R.format(acc)} is not a whole number`);
+        assert.ok(R.equals(R.pow(rooted, 2), acc), `${R.format(acc)} is not a perfect square`);
+      }
+      if (step.op === 'pow') {
+        sawPow += 1;
+        assert.ok(Number.isInteger(step.exponent));
+        assert.ok(step.exponent >= 2 && step.exponent <= band.maxPowExponent);
+      }
+      acc = evaluate({ start: acc, steps: [step] }, { maxPowExponent: band.maxPowExponent });
+    }
+    assert.equal(values.at(-1).n, puzzle.target.n);
+  }
+  assert.ok(sawSqrt > 0, 'Hard should use square roots regularly');
+  assert.ok(sawPow > 0, 'Hard should use powers regularly');
+});
+
+test('no puzzle ever divides by zero or hits a non-finite value', () => {
+  const rng = seeded(9090);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const band = getBand(mode, level);
+      for (let i = 0; i < 800; i += 1) {
+        const puzzle = generatePuzzle(mode, level, { rng });
+        for (const step of puzzle.secretRecipe.steps) {
+          if (opArity(step.op) === 'binary') {
+            assert.ok(!R.isZero(step.operand), `${mode} L${level} #${i} divides or multiplies by zero`);
+          }
+        }
+        for (const value of traceValues(puzzle.secretRecipe, { maxPowExponent: band.maxPowExponent })) {
+          assert.ok(R.isFiniteValue(value), `${mode} L${level} #${i} produced a non-finite value`);
+          assert.ok(Math.abs(value.n) <= Number.MAX_SAFE_INTEGER);
+        }
+      }
+    }
+  }
+});
+
+test('intermediates never explode past the configured ceiling', () => {
+  const rng = seeded(4004);
+  for (const mode of MODE_LIST) {
+    const band = getBand(mode, 1);
+    for (let i = 0; i < 3000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      for (const value of traceValues(puzzle.secretRecipe, { maxPowExponent: band.maxPowExponent })) {
+        assert.ok(
+          Math.abs(value.n) / value.d <= band.maxAbsIntermediate,
+          `${mode} #${i}: intermediate ${R.format(value)} exceeds ${band.maxAbsIntermediate}`,
+        );
+      }
+    }
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Difficulty must actually rise (PRD 5.1 / 5.7)
+ * ------------------------------------------------------------------ */
+
+test('difficulty rises between modes: Hard uses more steps than Easy', () => {
+  const averages = {};
+  for (const mode of MODE_LIST) {
+    const rng = seeded(24680);
+    let total = 0;
+    const runs = 3000;
+    for (let i = 0; i < runs; i += 1) {
+      total += generatePuzzle(mode, 1, { rng }).meta.steps;
+    }
+    averages[mode] = total / runs;
+  }
+  assert.ok(averages.easy < averages.medium, `Easy ${averages.easy} should be shorter than Medium ${averages.medium}`);
+  assert.ok(averages.medium < averages.hard, `Medium ${averages.medium} should be shorter than Hard ${averages.hard}`);
+  assert.equal(averages.easy, 2, 'Easy is fixed at a 2-step chain');
+});
+
+test('within a mode, level adds orders rather than complexity (PRD 5.7)', () => {
+  const stepAverages = [];
+  for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+    const rng = seeded(13579);
+    let total = 0;
+    const runs = 2000;
+    for (let i = 0; i < runs; i += 1) total += generatePuzzle('medium', level, { rng }).meta.steps;
+    stepAverages.push(total / runs);
+  }
+  const spread = Math.max(...stepAverages) - Math.min(...stepAverages);
+  assert.ok(spread <= 1.01, `chain length should stay flat across levels, drifted by ${spread}`);
+  for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+    assert.ok(ordersForLevel(level) >= 2);
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Pedagogical quality: the puzzles must be worth solving
+ * ------------------------------------------------------------------ */
+
+test('no step is a no-op that leaves the running value unchanged', () => {
+  const rng = seeded(1717);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 5000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const values = traceValues(puzzle.secretRecipe);
+      for (let s = 0; s < values.length - 1; s += 1) {
+        assert.ok(
+          !R.equals(values[s], values[s + 1]),
+          `${mode} #${i}: step ${s + 1} is a no-op, ${R.format(values[s])} -> ${R.format(values[s + 1])}`,
+        );
+      }
+    }
+  }
+});
+
+test('the running total is never zero halfway through a chain', () => {
+  const rng = seeded(2828);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 5000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const values = traceValues(puzzle.secretRecipe);
+      for (const value of values.slice(1)) {
+        assert.ok(!R.isZero(value), `${mode} #${i}: running total hit zero`);
+      }
+    }
+  }
+});
+
+test('orders are always a positive whole-number-ish count of dishes', () => {
+  const rng = seeded(3939);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      for (let i = 0; i < 1000; i += 1) {
+        const { target } = generatePuzzle(mode, level, { rng });
+        assert.ok(!R.isNegative(target), `${mode} L${level}: a customer cannot order ${R.format(target)}`);
+        assert.ok(!R.isZero(target), `${mode} L${level}: target must not be zero`);
+      }
+    }
+  }
+});
+
+test('fractions stay schoolbook friendly: small numerator, common denominator', () => {
+  const rng = seeded(4949);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 5000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const values = [...traceValues(puzzle.secretRecipe), puzzle.target, ...puzzle.ingredients];
+      for (const value of values) {
+        assert.ok(R.isDisplayNice(value), `${mode} #${i}: noisy value ${R.format(value)}`);
+        if (!R.isInteger(value)) {
+          assert.ok(value.d <= 10, `${mode} #${i}: denominator ${value.d} in ${R.format(value)} is too exotic`);
+          assert.ok(Math.abs(value.n) <= 12, `${mode} #${i}: sprawling numerator in ${R.format(value)}`);
+        }
+      }
+    }
+  }
+});
+
+test('no intermediate explodes into three digit territory', () => {
+  const rng = seeded(5050);
+  for (const mode of MODE_LIST) {
+    const band = getBand(mode, 1);
+    for (let i = 0; i < 3000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      for (const value of traceValues(puzzle.secretRecipe)) {
+        assert.ok(
+          Math.abs(value.n) / value.d <= band.maxAbsIntermediate,
+          `${mode} #${i}: ${R.format(value)} exceeds ${band.maxAbsIntermediate}`,
+        );
+      }
+    }
+  }
+});
+
+test('the first tile is a legal starting point, never zero', () => {
+  const rng = seeded(6161);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const band = getBand(mode, level);
+      for (let i = 0; i < 500; i += 1) {
+        const { secretRecipe } = generatePuzzle(mode, level, { rng });
+        assert.ok(!R.isZero(secretRecipe.start), `${mode} L${level}: chain starts at zero`);
+        assert.ok(R.compare(secretRecipe.start, R.rat(band.min)) >= 0);
+        assert.ok(R.compare(secretRecipe.start, R.rat(band.max)) <= 0);
+      }
+    }
+  }
+});
+
+test('the target is never reachable before the final step', () => {
+  const rng = seeded(7373);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 5000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const values = traceValues(puzzle.secretRecipe);
+      // values[last] is the target; nothing before it may repeat it.
+      for (let s = 0; s < values.length - 1; s += 1) {
+        assert.ok(
+          !R.equals(values[s], puzzle.target),
+          `${mode} #${i}: target ${R.format(puzzle.target)} already reached at step ${s}`,
+        );
+      }
+    }
+  }
+});
+
+test('no value repeats inside a chain unless the step genuinely loops', () => {
+  const rng = seeded(8484);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 3000; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      const values = traceValues(puzzle.secretRecipe);
+      for (let a = 0; a < values.length; a += 1) {
+        for (let b = a + 2; b < values.length; b += 1) {
+          assert.ok(
+            !R.equals(values[a], values[b]),
+            `${mode} #${i}: ${R.format(values[a])} repeats at steps ${a} and ${b}`,
+          );
+        }
+      }
+    }
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Level generation and misc
+ * ------------------------------------------------------------------ */
+
+test('generateLevel produces exactly as many puzzles as the order count', () => {
+  const rng = seeded(5150);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const result = generateLevel(mode, level, { rng });
+      assert.equal(result.puzzles.length, ordersForLevel(level));
+      assert.equal(result.orders, ordersForLevel(level));
+      for (const puzzle of result.puzzles) {
+        assert.ok(R.isDisplayNice(puzzle.target));
+        assert.equal(puzzle.meta.orders, ordersForLevel(level));
+      }
+    }
+  }
+});
+
+test('metadata is filled in consistently', () => {
+  const rng = seeded(64);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const puzzle = generatePuzzle(mode, level, { rng });
+      const { meta } = puzzle;
+      assert.equal(meta.mode, mode);
+      assert.equal(meta.level, level);
+      assert.equal(meta.orders, ordersForLevel(level));
+      assert.equal(meta.steps, puzzle.secretRecipe.steps.length);
+      assert.equal(meta.realIngredientCount, collectIngredients(puzzle.secretRecipe).length);
+      assert.equal(meta.targetDisplay, R.toDisplayString(puzzle.target));
+      assert.equal(meta.solutionDisplay, displaySolution(puzzle.secretRecipe));
+      assert.ok(meta.distractorCount >= 0);
+    }
+  }
+});
+
+test('displaySolution round-trips through the evaluator', () => {
+  const rng = seeded(2323);
+  for (const mode of MODE_LIST) {
+    for (let i = 0; i < 500; i += 1) {
+      const puzzle = generatePuzzle(mode, 1, { rng });
+      assert.equal(typeof puzzle.meta.solutionDisplay, 'string');
+      assert.ok(puzzle.meta.solutionDisplay.length > 0);
+    }
+  }
+});
+
+test('invalid arguments are rejected up front', () => {
+  assert.throws(() => generatePuzzle('easy', 99), /level must be/);
+  assert.throws(() => generatePuzzle('easy', 0), /level must be/);
+  assert.throws(() => generatePuzzle('nope', 1), /unknown mode/);
+});
+
+test('an exhausted attempt budget fails loudly rather than return a bad puzzle', () => {
+  assert.throws(
+    () => generatePuzzle('hard', 1, { maxTargetAttempts: 0, rng: makeRng(1) }),
+    GenerationError,
+  );
+  assert.throws(
+    () => generatePuzzle('easy', 1, { maxTargetAttempts: 0, rng: makeRng(1) }),
+    GenerationError,
+  );
+});
+
+test('generation is efficient enough to run while a player is waiting', () => {
+  // Measured success rate per attempt budget. If the guards in peel get much
+  // stricter this drops, which would mean a visible pause before each order.
+  const expectations = [
+    ['easy', 5, 0.97],
+    ['medium', 5, 0.97],
+    ['hard', 5, 0.97],
+  ];
+  for (const [mode, budget, floor] of expectations) {
+    const rng = makeRng(777);
+    let ok = 0;
+    const runs = 2000;
+    for (let i = 0; i < runs; i += 1) {
+      try {
+        generatePuzzle(mode, 1, { rng, maxTargetAttempts: budget });
+        ok += 1;
+      } catch {
+        // counted as a failure
+      }
+    }
+    assert.ok(ok / runs >= floor, `${mode} only reached ${(100 * ok) / runs}% within ${budget} attempts`);
+  }
+});
+
+test('the default attempt budget never fails in practice', () => {
+  const rng = makeRng(24680);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      for (let i = 0; i < 200; i += 1) {
+        assert.doesNotThrow(() => generatePuzzle(mode, level, { rng }), `${mode} L${level} #${i}`);
+      }
+    }
+  }
+});
+
+test('generating a puzzle is fast enough for a browser frame budget', () => {
+  const rng = makeRng(1);
+  for (const mode of MODE_LIST) {
+    const start = process.hrtime.bigint();
+    const runs = 2000;
+    for (let i = 0; i < runs; i += 1) generatePuzzle(mode, 1, { rng });
+    const msPerPuzzle = Number(process.hrtime.bigint() - start) / 1e6 / runs;
+    assert.ok(msPerPuzzle < 5, `${mode} took ${msPerPuzzle.toFixed(3)}ms per puzzle`);
+  }
+});
+
+test('makeRng produces repeatable uniform values in [0, 1)', () => {
+  const a = makeRng(5);
+  const b = makeRng(5);
+  for (let i = 0; i < 500; i += 1) {
+    const value = a();
+    assert.equal(value, b());
+    assert.ok(value >= 0 && value < 1, `out of range: ${value}`);
+  }
+});

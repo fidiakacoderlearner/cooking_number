@@ -1,0 +1,15 @@
+{
+  "name": "number-kitchen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Number Kitchen - educational math game for junior high school students",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "inspect": "node scripts/inspect-puzzles.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
