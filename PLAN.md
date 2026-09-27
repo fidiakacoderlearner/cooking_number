@@ -30,15 +30,26 @@ otomatis.** Kita ~3 minggu lebih maju dari jadwal PRD di §10.
    level. Kalau sebuah level belum pernah dimainkan dari menu sampai overlay,
    ia belum terbukti.
 4. **Materi submission belum dimulai sama sekali.** Video demo butuh rekaman
-   layar yang bisa diambil sekalian dari playtest.
+   layar yang bisa diambil sekalian dari playtest. Isi deskripsi dan checklist
+   sudah ada di `SUBMISSION.md`.
+5. **Drag baru diperbaiki di Fase 1.** Playtest berikutnya adalah kesempatan
+   pertama ada yang benar-benar mencobanya. Kalau masih tidak terpakai setelah
+   itu, baru layak dibapus.
 
 Urutan pekerjaan:
 
 ### 1. Playtest di HP asli - 1-2 jam (waktu manusia, blocker utama)
 
-Ikuti **`PLAYTEST.md`** persis: lima run (Easy L1, Easy L5, Medium L1, Hard L1,
+Ikuti **`PLAYTEST.md`**: lima run (Easy L1, Easy L5, **Hard L1**, Medium L1,
 Hard L3), isi formulirnya, kirim balik. Sekalian rekam layar 30-60 detik per run
-untuk video demo.
+untuk video demo. Hard L1 dipindah ke posisi ketiga supaya rasa "terlalu
+gampang" yang paling menentukan terkumpul lebih dulu.
+
+**Cara membuka game di HP:** `python -m http.server 8099 --bind 0.0.0.0` di
+`C:\Users\ASUS\Documents\cooking_number`, lalu buka `http://192.168.1.6:8099/`
+dari HP pada WiFi yang sama. Harus lewat HTTP, `file://` diblokir CORS. Untuk
+membuka semua level sekaligus: `localStorage.setItem('cn.progress',
+'{"easy":5,"medium":5,"hard":5}')` lalu reload.
 
 Yang sudah otomatis terukur dan tidak perlu dicatat lagi: semua 15 level
 solvable dari bahan yang tampil di layar, dan tidak ada walkout yang terjadi
@@ -53,15 +64,37 @@ karena salah klik.
 - [ ] Perpendek alur lima langkah kalau playtest menunjukkan sering salah ketuk
       di langkah pertama.
 - [ ] Perbaiki teks i18n yang belum natural saat dibaca.
-- [ ] Putuskan apa yang harus dilakukan dengan barisan pelanggan pada layar
-      320px: saat ini 4 chip butuh 414px, jadi 2 chip berada di luar layar.
-      Playtest yang tahu apakah ini terasa oleh pemain sungguhan.
 
-### 3. Submission - 3-4 jam (bisa paralel dengan langkah 1-2)
+### 3. Mockup alur - 2 jam
+
+Sudah diputuskan, belum dikerjakan. Setelah playtest kedua supaya tidak ada
+dua kali pengujian dengan bentuk yang berbeda.
+
+- [ ] Hapus tombol "Masak untuk dia": ketuk chip langsung memuat stand
+- [ ] Hapus teks "Building a dish for X" (hijau sudah menunjuk pelanggan itu)
+- [ ] Popup konfirmasi pindah pelanggan kalau stand berisi lebih dari 2 tile,
+      dan timer berhenti selama popup terbuka
+- [ ] Pertimbangkan menghapus jalur drag-serve **setelah** ada playtest yang
+      memakai drag dengan sadar. Jangan dihapus sekarang: drag baru diperbaiki
+      di Fase 1, jadi belum ada yang pernah mencobanya dengan gpsional yang
+      benar
+
+### 4. Kaidah operasi - 1-2 hari
+
+Sudah diputuskan, belum dikerjakan. Menggantikan left-to-right yang dikunci di
+PRD §4 dan AGENTS.md aturan 3, jadi tiga dokumen itu ikut direvisi.
+
+- [ ] `evaluate.js` parse rantai dengan kaidah operasi
+- [ ] `generator.js`: `x` dan `:` tidak boleh diikuti `+` atau `-` dalam satu
+      rantai, supaya peel backward tetap valid
+- [ ] Solver smoke test ikut kaidah, plus test regresi `2 + 3 x 4` = 14
+- [ ] Semua teks "left-to-right" diganti jadi kaidah operasi
+
+### 5. Submission - 3-4 jam (bisa paralel dengan langkah 1-4)
 
 - [ ] Video demo 1-2 menit, dari rekaman playtest
-- [ ] Deskripsi proyek
-- [ ] Checklist rubrik lomba
+- [ ] Deskripsi proyek, sudah ada di `SUBMISSION.md`
+- [ ] Checklist rubrik lomba, sudah ada di `SUBMISSION.md`
 
 ### Kalau hanya sempat satu sesi
 
@@ -235,9 +268,13 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
       `pushTile`, jadi stand dipaksa menepati jaminan solvability yang sama
       dengan core
 - [x] Lebar 320px dan 1280px diperiksa otomatis di smoke test
-- [~] Barisan 4 pelanggan pada layar 320px: 2 dari 4 chip berada di luar
-      layar (butuh 414px). Target sentuh aman, tapi keberadaan chip di luar
-      layar belum tentu dirasakan pemain. Menunggu jawaban playtest.
+- [x] Barisan pelanggan muat di layar 320px. `MAX_ON_SCREEN` 3, dan chip
+      bisa menyusut: tiga chip butuh 278px dari 320px, jadi tidak ada lagi yang
+      tersembunyi
+- [x] Sinyal kesabaran hidup: kuning di bawah 2/3, merah di bawah 1/3
+- [x] Nilai akhir mengisi piring, bukan melayang di atasnya
+- [x] Akar kuadrat ditulis `√16` dalam satu slot
+- [x] Drag tile terlihat mengikuti jari (ditemukan lewat playtest)
 - [ ] Uji drag di perangkat asli: apakah drag merebut scroll halaman
 - [ ] Styling akhir dan polish
 

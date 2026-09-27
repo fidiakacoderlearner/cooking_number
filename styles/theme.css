@@ -186,9 +186,14 @@
   pointer-events: none;
 }
 
+/* A tile being dragged follows the finger. The transition has to go: a 90ms ease
+   on `transform` means the tile is always that far behind the pointer, which is
+   what made the drag read as nothing happening. The lift is now carried by
+   shadow and opacity instead. */
 .tile.is-dragging {
-  opacity: 0.9;
-  z-index: 30;
+  transition: none;
+  opacity: 1;
+  box-shadow: 0 10px 0 -2px rgba(38, 42, 51, 0.28), 0 16px 24px rgba(38, 42, 51, 0.22);
 }
 
 /* Workspace tiles are part of a built expression, so they read as one strip. */
@@ -213,6 +218,15 @@
   background: var(--sky);
   color: #fff;
   font-size: 1.3rem;
+}
+
+/* A value with a root wrapped around it. It keeps the butter fill so it still
+   reads as a one-tile unary step rather than a plain ingredient (PRD 5.3), and
+   it is wider than an ordinary slot because it now carries two pieces. */
+.slot--root {
+  background: var(--butter);
+  font-size: 1.3rem;
+  padding: 6px 12px;
 }
 
 .slot--unary {

@@ -26,7 +26,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
-import { customersForLevel, getBand } from '../src/core/difficulty.js';
+import { customersForLevel, getBand, MAX_ON_SCREEN } from '../src/core/difficulty.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -322,20 +322,22 @@ const READ_TAP_TARGETS = () => {
 };
 
 /**
- * How a full queue of four customers fits the viewport.
+ * How a completely full queue fits the viewport.
  *
  * The chips are cloned from a real one so this measures the real CSS, because
- * waiting for four customers to walk in costs 30 seconds of real time. A chip
- * narrower than the touch minimum is a gate failure; a chip pushed out of view
- * is a finding for the playtest on a real phone, not a failure here.
+ * waiting for a full queue costs a minute of real time. The count comes from
+ * `MAX_ON_SCREEN` rather than being written down here, so the probe keeps
+ * measuring the game that actually ships. A chip narrower than the touch minimum
+ * is a gate failure; a chip pushed out of view is a finding for the playtest on
+ * a real phone, not a failure here.
  */
-const READ_QUEUE_FIT = () => {
+const READ_QUEUE_FIT = (count) => {
   const strip = document.querySelector('.queue__strip');
   const real = strip?.querySelector('.chip');
   if (!real) return { skipped: true };
 
   const clones = [];
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < count; i += 1) {
     const clone = real.cloneNode(true);
     strip.append(clone);
     clones.push(clone);
@@ -398,8 +400,14 @@ async function checkTapTargets(page, where) {
  * `source` is `{ selector, label? }` so a tile can be named rather than merely
  * pointed at: a used ingredient is still on screen but disabled, and a disabled
  * button swallows the pointer.
+ *
+ * `{ midDrag }` receives a callback run while the button is still down, so a
+ * caller can look at the element mid-flight. Checking only where a drag lands
+ * proved to be blind to the drag being invisible: a phone playtest reported
+ * never being able to see a tile move, while this test passed, because the drop
+ * is resolved from the pointer position and says nothing about the tile.
  */
-async function dragOnto(page, source, target) {
+async function dragOnto(page, source, target, { midDrag } = {}) {
   const centre = async (spec) => page.evaluate((s) => {
     const node = [...document.querySelectorAll(s.selector)].find((n) => {
       if (n.getClientRects().length === 0 || n.disabled) return false;
@@ -423,11 +431,11 @@ async function dragOnto(page, source, target) {
       from.y + ((to.y - from.y) * step) / 8,
     );
     await wait(25);
+    if (midDrag && step === 5) await midDrag({ from, to });
   }
   await page.mouse.up();
   await wait(150);
-  return true;
-}
+  return true;}
 
 /** A rack tile, named by what it says on it. */
 function tileSource(kind, label) {
@@ -449,6 +457,21 @@ const SOLVE_ON_SCREEN = (target, values, ops, maxSteps) => window.__cn.solve(
 
 /** The stand's own contents, in order, as the player would read them. */
 const READ_STAND = () => [...document.querySelectorAll('.workspace__line .slot')].map((n) => n.textContent);
+
+/**
+ * The stand's contents in the shape the solver's plan uses.
+ *
+ * A root is displayed wrapped around its value (`√18`) because that is how it is
+ * written, while the plan records the value and the sign as two separate steps.
+ * Without this the comparison reports a chain that is actually correct as a
+ * mismatch, which is how a test ends up failing the thing it was written to
+ * prove. The rewrite is inlined because this runs inside the browser.
+ */
+const STAND_AS_PLAN = () => [...document.querySelectorAll('.workspace__line .slot')].map((n) => {
+  const trimmed = String(n.textContent).trim();
+  const rooted = /^\u221a(.+)$/.exec(trimmed);
+  return rooted ? `${rooted[1]} \u221a` : trimmed;
+});
 
 /** Press the "Cook for" button on a chip, which loads the stand. */
 async function cookFor(page, orderId) {
@@ -612,9 +635,7 @@ async function buildDish(page, chip, { maxSteps, verbose, band, mode, level }) {
     }
   }
 
-  const standNow = await page.evaluate(() =>
-    [...document.querySelectorAll('.workspace__line .slot')].map((n) => n.textContent),
-  );
+  const standNow = await page.evaluate(STAND_AS_PLAN);
   if (!check(
     standNow.join(' ') === planned.join(' '),
     `${chip.target}: the stand holds exactly the planned chain (built "${standNow.join(' ')}", planned "${planned.join(' ')}")`,
@@ -740,7 +761,7 @@ async function dragChecks(page) {
     plate: document.querySelector('[data-plate-value]')?.textContent ?? '',
   }));
   must(
-    built.stand.join(' ') === planned.join(' '),
+    (await page.evaluate(STAND_AS_PLAN)).join(' ') === planned.join(' '),
     `a chain built only by dragging reads "${built.stand.join(' ')}"`,
   );
   must(built.serveEnabled, `a dragged chain can be served (plate "${built.plate}")`);
@@ -772,10 +793,56 @@ async function dragChecks(page) {
   const square = hardRack.ops.find((o) => o.kind === 'unary');
   if (!must(square !== undefined, `Hard offers a unary tile to drag: ${hardRack.ops.map((o) => o.label).join(' ')}`)) return;
 
+  // The tile has to be seen moving, not just land in the right place. The drop
+  // is resolved from the pointer position, so a drag where the tile never left
+  // its origin still dropped correctly and this section passed, while a player
+  // had reported being unable to see a tile move at all.
+  let travel = null;
+  const DRAG_STEPS = 8;
+  const PROBE_STEP = 5;
   must(
-    await dragOnto(page, tileSource('number'), WORKSPACE),
-    'a number can be dragged in Hard',
+    await dragOnto(page, tileSource('number'), WORKSPACE, {
+      midDrag: async ({ from, to }) => {
+        travel = await page.evaluate((points) => {
+          const tile = document.querySelector('.tile.is-dragging');
+          if (!tile) return { found: false };
+          const r = tile.getBoundingClientRect();
+          return {
+            found: true,
+            dx: r.left + r.width / 2 - points.from.x,
+            dy: r.top + r.height / 2 - points.from.y,
+            wantX: (points.to.x - points.from.x) * points.fraction,
+            wantY: (points.to.y - points.from.y) * points.fraction,
+            opacity: getComputedStyle(tile).opacity,
+            transition: getComputedStyle(tile).transitionDuration,
+          };
+        }, { from, to, fraction: PROBE_STEP / DRAG_STEPS });
+      },
+    }),
+    'a number can be dragged onto the stand',
   );
+  if (travel?.found) {
+    const movedX = Math.abs(travel.dx);
+    const movedY = Math.abs(travel.dy);
+    must(
+      movedX >= Math.abs(travel.wantX) - 10,
+      `the dragged tile follows the pointer horizontally (moved ${Math.round(movedX)}px of ${Math.round(Math.abs(travel.wantX))}px by step ${PROBE_STEP} of ${DRAG_STEPS})`,
+    );
+    must(
+      movedY >= Math.abs(travel.wantY) - 10,
+      `the dragged tile follows the pointer vertically (moved ${Math.round(movedY)}px of ${Math.round(Math.abs(travel.wantY))}px by step ${PROBE_STEP} of ${DRAG_STEPS})`,
+    );
+    must(
+      Number(travel.opacity) >= 0.95,
+      `the dragged tile stays fully visible (opacity ${travel.opacity})`,
+    );
+    must(
+      /^0s/.test(travel.transition),
+      `the dragged tile has no transition to lag behind (transform ${travel.transition})`,
+    );
+  } else {
+    fail('the dragged tile was not marked as dragging mid-gesture');
+  }
   must(
     await dragOnto(page, tileSource('operator', square.label), WORKSPACE),
     `a "${square.label}" tile can be dragged`,
@@ -790,6 +857,76 @@ async function dragChecks(page) {
     unaryRack.plateValue.startsWith('='),
     `the plate shows the squared value straight away ("${unaryRack.plateValue}")`,
   );
+
+  console.log('\n--- A root is written around the number, not after it (Hard L3)');
+  await openLevel(page, 'hard', 3);
+  const rootQueue = await waitForChip(page);
+  if (!must(rootQueue !== null, 'a customer walks in for the root test')) return;
+  await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"] .chip__cook`)?.click(), rootQueue.chips[0].orderId);
+  await wait(200);
+
+  const rootRack = await page.evaluate(READ_RACK);
+  const rootSign = rootRack.ops.find((o) => o.kind === 'unary' && o.label === '\u221a');
+  if (!must(rootSign !== undefined, `Hard L3 offers a root to place: ${rootRack.ops.map((o) => o.label).join(' ')}`)) return;
+
+  // A root of a value that is not a perfect square is refused, which is correct
+  // but useless here, so a square has to be reached first. The pair is searched
+  // for rather than stumbled into, because whether the running total happens to
+  // pass through a square depends on the rack the dealer dealt and the test has
+  // to mean the same thing every run.
+  const isSquare = (n) => Number.isInteger(n) && n >= 0 && Number.isInteger(Math.sqrt(n));
+  const whole = rootRack.values
+    .map((label) => ({ label, value: Number(label) }))
+    .filter((e) => Number.isInteger(e.value) && e.value >= 0);
+  // Single squares first, and zero excluded: rooting zero is a no-op and would
+  // make the plate look like nothing happened.
+  const routes = whole.filter((e) => isSquare(e.value) && e.value > 0).map((e) => [e.label]);
+  for (const a of whole) {
+    for (const b of whole) {
+      if (a === b) continue;
+      for (const [symbol, result] of [['+', a.value + b.value], ['\u2212', a.value - b.value]]) {
+        if (isSquare(result) && result > 0) routes.push([a.label, symbol, b.label]);
+      }
+    }
+  }
+  if (!must(routes.length > 0, `the rack can reach a perfect square: [${rootRack.values.join(' ')}]`)) return;
+
+  const route = routes[0];
+  for (const [step, piece] of route.entries()) {
+    const kind = step % 2 === 0 ? 'number' : 'operator';
+    await dragOnto(page, tileSource(kind, piece), WORKSPACE);
+  }
+  const squarePlate = await page.evaluate(READ_RACK);
+  must(isSquare(Number(squarePlate.plateValue.replace('=', '').trim())),
+    `the stand reads a perfect square before the root ("${route.join(' ')}" is "${squarePlate.plateValue}")`);
+
+  const numbers = route.filter((_, i) => i % 2 === 0).length;
+  must(
+    await dragOnto(page, tileSource('operator', '\u221a'), WORKSPACE),
+    'a root can be placed',
+  );
+  const rooted = await page.evaluate(() => ({
+    stand: [...document.querySelectorAll('.workspace__line .slot')].map((n) => n.textContent),
+    roots: document.querySelectorAll('.workspace__line .slot--root').length,
+    plate: document.querySelector('[data-plate-value]')?.textContent ?? '',
+  }));
+  must(
+    rooted.roots === 1,
+    `a root wraps the number instead of sitting in its own box (${rooted.stand.join(' ')})`,
+  );
+  must(
+    rooted.stand.length === numbers * 2 - 1,
+    `the root merged into the existing slot rather than adding one (${rooted.stand.length} slots for ${numbers} numbers and ${numbers - 1} operators)`,
+  );
+  must(
+    rooted.stand.some((s) => s.startsWith('\u221a')),
+    `the root is written in front of its value ("${rooted.stand.join(' ')}")`,
+  );
+  must(
+    !rooted.stand.some((s) => s.endsWith('\u221a')),
+    `no slot is left as a value followed by a stray root ("${rooted.stand.join(' ')}")`,
+  );
+  ok(`   rooted "${squarePlate.plateValue}" reads as "${rooted.stand.join(' ')}", plate "${rooted.plate}"`);
 }
 
 /**
@@ -813,6 +950,7 @@ async function runOneLevel(page, { mode, level, detailed = false }) {
   let lost = 0;
   let unsolvable = 0;
   let failuresHere = 0;
+  let consecutiveBuildFailures = 0;
   const deadline = Date.now() + LEVEL_DEADLINE_MS;
 
   while (Date.now() < deadline) {
@@ -838,10 +976,20 @@ async function runOneLevel(page, { mode, level, detailed = false }) {
         continue;
       }
       if (built.reason === 'unsolvable') unsolvable += 1;
+      // A customer whose dish will not build is retried a couple of times in
+      // case it was a stale stand, then the level gives up. Retrying forever
+      // turns one real failure into a thousand identical lines and buries the
+      // reason.
+      consecutiveBuildFailures += 1;
       note(`${label}: could not build a dish for ${chip.target} (${built.reason}): ${built.detail}`);
+      if (consecutiveBuildFailures >= 3) {
+        fail(`${label}: giving up after three failed builds in a row (${built.reason})`);
+        break;
+      }
       await clearStand(page);
       continue;
     }
+    consecutiveBuildFailures = 0;
 
     const plate = await page.evaluate(READ_RACK);
     await serveDish(page);
@@ -870,26 +1018,58 @@ async function runOneLevel(page, { mode, level, detailed = false }) {
   return { served, lost, unsolvable };
 }
 
+/** Thrown when the page or its frame is gone, as opposed to the game failing. */
+class BrowserDied extends Error {}
+
+/** Does this error mean the browser went away rather than the game misbehaving? */
+const BROWSER_DEATH = /detached Frame|Execution context|Target closed|Protocol error|Navigating frame|Node is either not clickable|frame was detached/i;
+
+function guardDeath(error) {
+  if (BROWSER_DEATH.test(String(error?.message ?? ''))) {
+    throw new BrowserDied(String(error.message));
+  }
+  throw error;
+}
+
 /**
- * Play one level, and play it again if the browser dies.
+ * A page wired up to the same error sinks as the original.
  *
- * A long run of fifteen levels keeps one tab and one browser alive for the best
- * part of an hour, and on this machine that occasionally ends with the page
- * dying mid-level: a detached frame, a destroyed execution context, a closed
- * target. None of those say anything about the game, so a level that dies that
- * way gets one clean retry from a freshly loaded page. A genuine game failure
- * never looks like this, so nothing real is hidden by the retry.
+ * Recovery has to build a new page rather than reload the old one: a detached
+ * frame is gone for good, and reloading it fails with the very error that caused
+ * the retry in the first place.
  */
-async function playOneLevel(page, combo) {
-  const BROWSER_DEATH = /detached Frame|Execution context|Target closed|Protocol error|Target closed|Navigating frame/i;
+async function openGamePage(browser, sink) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  page.on('console', (m) => { if (m.type() === 'error') sink.consoleErrors.push(m.text()); });
+  page.on('pageerror', (e) => sink.pageErrors.push(String(e)));
+  page.on('error', (e) => sink.pageCrashes.push(String(e)));
+  page.on('requestfailed', (r) => sink.failedRequests.push(`${r.url()} ${r.failure()?.errorText ?? ''}`));
+  return page;
+}
+
+/**
+ * Play one level, and build a new page and play it again if the browser dies.
+ *
+ * A long run keeps one tab alive for the best part of an hour and on this machine
+ * the renderer occasionally dies mid-level: a detached frame, a destroyed
+ * execution context, a closed target. None of those say anything about the game,
+ * so a level that dies that way is retried once on a fresh page. A real game
+ * failure never looks like this, so nothing is hidden by the retry.
+ *
+ * Returns the page to keep using, because a recovery replaces it.
+ */
+async function playOneLevel(page, combo, browser, sink) {
   try {
-    return await runOneLevel(page, combo);
+    return { page, result: await runOneLevel(page, combo) };
   } catch (error) {
-    if (!BROWSER_DEATH.test(error.message)) throw error;
-    note(`${combo.mode} L${combo.level}: the browser dropped the page (${error.message}), retrying once`);
-    await page.reload({ waitUntil: 'networkidle0' }).catch(() => {});
-    await page.evaluate(PAGE_HELPERS).catch(() => {});
-    return runOneLevel(page, combo);
+    if (!(error instanceof BrowserDied)) guardDeath(error);
+    note(`${combo.mode} L${combo.level}: the browser dropped the page (${error.message}), retrying on a new page`);
+    await page.close().catch(() => {});
+    const fresh = await openGamePage(browser, sink);
+    await fresh.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle0' });
+    await fresh.evaluate(PAGE_HELPERS);
+    return { page: fresh, result: await runOneLevel(fresh, combo) };
   }
 }
 
@@ -969,13 +1149,10 @@ async function main() {
   const failedRequests = [];
   const pageCrashes = [];
 
+  const sink = { consoleErrors, pageErrors, pageCrashes, failedRequests };
+
   try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-    page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
-    page.on('pageerror', (e) => pageErrors.push(String(e)));
-    page.on('error', (e) => pageCrashes.push(String(e)));
-    page.on('requestfailed', (r) => failedRequests.push(`${r.url()} ${r.failure()?.errorText ?? ''}`));
+    let page = await openGamePage(browser, sink);
 
     console.log('\n--- Boot');
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle0' });
@@ -999,7 +1176,9 @@ async function main() {
     must(lockedBefore === 4, `only level 1 is unlocked at first (${lockedBefore} locked)`);
 
     for (const combo of combos) {
-      await playOneLevel(page, combo);
+      // A recovery hands back a replacement page, so the page has to be taken
+      // from the result rather than captured.
+      ({ page } = await playOneLevel(page, combo, browser, sink));
     }
 
     await dragChecks(page);
@@ -1117,7 +1296,7 @@ async function main() {
     );
     checkTapTargets(page, '320px');
 
-    const fit = await page.evaluate(READ_QUEUE_FIT);
+    const fit = await page.evaluate(READ_QUEUE_FIT, MAX_ON_SCREEN);
     if (fit.skipped) {
       note('   could not measure a full queue: no customer chip on screen');
     } else {
@@ -1126,11 +1305,15 @@ async function main() {
         `every customer chip stays a comfortable tap target at 320px (${fit.boxes.map((b) => b.width).join(', ')}px wide)`,
       );
       const offscreen = fit.boxes.filter((b) => b.left < 0 || b.right > fit.viewport);
-      note(
-        `   four customers need ${fit.scrollW}px of a ${fit.viewport}px viewport`
-        + `${fit.scrollable ? ' (the queue scrolls sideways)' : ''}`
-        + `${offscreen.length > 0 ? `, ${offscreen.length} chip(s) sit outside the view: ask the player about this` : ', all four fit'}`,
+      // A full queue has to be fully visible. Scrolling sideways to find the
+      // customer who is running out of patience is exactly the walkout the
+      // player never saw coming, which AGENTS.md rule 11 rules out.
+      must(
+        offscreen.length === 0,
+        `a full queue of ${MAX_ON_SCREEN} customers fits a 320px screen with nothing off it`
+        + `${offscreen.length > 0 ? ` (${fit.scrollW}px needed, ${offscreen.length} chip(s) outside the view)` : ''}`,
       );
+      note(`   a full queue needs ${fit.scrollW}px of a ${fit.viewport}px viewport`);
     }
 
     console.log('\n--- Clean console');

@@ -61,6 +61,22 @@ function startTimer() {
  * Serving
  * ------------------------------------------------------------------ */
 
+/**
+ * How quickly a customer was served, in words.
+ *
+ * The points already carry the speed bonus, so without a word for it two
+ * different scores read as the same event and the player has no idea that
+ * serving fast is what the rest of the number is paying for.
+ */
+function paceFor(outcome) {
+  const base = S.SCORE_BASE[state?.mode] ?? 10;
+  const ratio = base > 0 ? (outcome.points - base) / (base * S.SPEED_BONUS_RATIO) : 0;
+  if (ratio >= 0.8) return 'result.pace.blazing';
+  if (ratio >= 0.5) return 'result.pace.fast';
+  if (ratio >= 0.2) return 'result.pace.steady';
+  return 'result.pace.slow';
+}
+
 function handleServeTo(orderId) {
   if (!state || state.phase !== S.PHASES.PLAYING) return;
   const outcome = S.serveTo(state, orderId);
@@ -73,7 +89,10 @@ function handleServeTo(orderId) {
   if (outcome.correct) {
     view.steamBurst();
     view.bump(view.dom.hudScore);
-    view.feedback(t('result.served', { points: outcome.points }), 'good');
+    view.feedback(
+      t('result.served', { points: outcome.points, pace: t(paceFor(outcome)) }),
+      'good',
+    );
   } else {
     // A walkout is the most destructive thing in the game, so it is never silent.
     view.shake(view.dom.queue);
@@ -110,6 +129,9 @@ function showLevelDone() {
 function startLevel(mode, level) {
   stopTimer();
   state = S.createState(mode, level);
+  // Order ids restart at 1 for a new level, so the arrival memory has to go too
+  // or the first customer of the new level would not animate.
+  view.resetChipArrivals();
   view.showOverlay(null);
   view.showScreen('game');
   view.feedback(null);

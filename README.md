@@ -78,7 +78,7 @@ SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 | Topik | Keputusan |
 |---|---|
 | Bentuk ekspresi | Chaining bertahap, hasil operator kembali dipakai di langkah berikutnya |
-| Aturan hitung | **Left-to-right**, semua operator sama bobot: `2 + 3 x 4 = 20` |
+| Aturan hitung | **Left-to-right**, semua operator sama bobot: `2 + 3 x 4 = 20`. Playtest di HP menyimpulkan ini membingungkan karena kaidah operasi gula jadi `14`; sudah diputuskan ganti ke kaidah, belum dikerjakan (lihat `PLAN.md` Fase 4) |
 | Sisi numerik | Aritmetika pecahan eksak, `0.1 + 0.2` harus `0.3` |
 | Substansi | Subset bebas, ada distractor sehingga pemain harus memilih |
 | Jumlah solusi | Single hiding, satu jawaban rahasia ditambah pengalihan |
@@ -87,7 +87,7 @@ SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 | Pelanggan | Datang **berkala satu per satu**, menumpuk kalau pemain lambat |
 | Kesabaran | **Per pelanggan**, semua jalan bersamaan. Easy 50s, Medium 44s, Hard 38s |
 | Spawner | Interval dasar 15/12/10 detik, dengan jitter dan decay. Layar penuh = spawner berhenti |
-| Batas layar | Maksimal 4 pelanggan menunggu sekaligus |
+| Batas layar | Maksimal 3 pelanggan menunggu sekaligus |
 | Syarat gagal | **Walkout tanpa reward**. Tidak ada nyawa, tidak ada pelanggan pengganti |
 | Level gagal | Tidak ada. Level selesai saat roster habis, yang beda cuma skor |
 | Skor | Base per pelanggan per mode, plus bonus kecepatan dari sisa kesabaran. Tidak pernah berkurang |

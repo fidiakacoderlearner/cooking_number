@@ -53,6 +53,52 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **Drag tidak pernah terlihat bergerak, dan drop-nya diam-diam gagal.** Dua
+  bug yang saling menutupi. `drag.js` menulis `translate(dx / 2, dy / 2)` ke
+  `transform` setiap event, padahal `event.dx` adalah delta sejak event
+  sebelumnya, bukan jarak total — jadi tile melompat satu langkah lalu kembali,
+  berulang. Offscreen-nya juga dibagi dua tanpa alasan, dan `.tile` punya
+  `transition: transform 90ms` yang membuat tile selalu tertinggal di belakang
+  jari. Offset sekarang dijumlahkan, `/ 2` dihapus, dan transisi dimatikan saat
+  sedang di-drag. Playtest di HP melaporkan "saya tidak melihat bahwa ini sedang
+  di-drag", dan itu sebabnya.
+- **Begitu drag-nya benar, drop-nya ikut terbongkar.** `end` memulihkan
+  `pointer-events` sebelum membaca drop zone, sehingga hit test diambil oleh tile
+  itu sendiri yang sedang persis di bawah jari — dan tile berada di rak, bukan
+  di drop zone, jadi drop tidak terjadi tanpa tanda apa pun. Bug ini tersembunyi
+  selama drag-nya rusak, karena tile yang tidak bergerak tidak pernah ada di
+  bawah jari. Zone sekarang dibaca sebelum gaya dipulihkan.
+- **Chip pelanggan berkedip sekali per detik.** `.chip` punya animasi
+  `pop-in`, tapi `renderChips` membangun ulang node chip setiap render dan
+  controller merender setiap detik, jadi animasi "pelanggan datang" diputar
+  ulang terus-menerus. Akibatnya sinyal kedatangan kehilangan artinya: semua chip
+  berdenyut sama. Animasi sekarang hanya untuk chip yang benar-benar baru.
+- **Sinyal "kesabaran hampir habis" tidak pernah muncul.** Kelas `is-urgent`
+  sudah ada di CSS sejak awal tapi tidak pernah dipasang oleh kode mana pun, jadi
+  tidak ada peringatan visual selain bar yang menyusut. Sekarang dippasang, dan
+  dibuat dua ambang: kuning di bawah dua pertiga kesabaran, merah di bawah
+  pertiga.
+- **Akar kuadrat ditulis terbalik.** `16` lalu `√` tampil sebagai dua kotak,
+  terbaca "16 lalu akar", padahal bentuknya `√16`. Akar sekarang membungkus
+  nilainya dalam satu slot. Pangkat tidak berubah karena `16²` memang sudah
+  benar. Rantai contoh yang diputar balik oleh test: `7 − 3` lalu akar terbaca
+  `7 − √3`.
+- **Nilai akhir di piring kecil dan melayang di atas piring**, padahal
+  komentarnya mengklaim "larger than any other text on the play screen" dan
+  `font-size`-nya sama persis dengan target di chip. Nilai kini mengisi piring
+  dengan ukuran terbesar di layar. Blok CSS-nya juga terduplikasi dan salah satu
+  sudah dihapus.
+- **Kartu level dengan tinggi berbeda.** Natural height terkunci 77px dan terbuka
+  60px, hanya disamarkan `min-height: 84px` dengan sisa 7px, jadi pada perangkat
+  dengan skala font sedikit lebih besar kartu terkunci ikut meninggi. Teks kunci
+  dipersingkat.
+- **`MAX_ON_SCREEN` 4 -> 3.** Empat chip butuh 414px pada viewport 320px, jadi
+  dua di antaranya berada di luar layar dan harus digeser. Playtest di HP juga
+  melaporkan tiga chip sudah terasa penuh. Barisannya kini muat 278px.
+- **Tombol "Masak" melebar dan mendorong antrean keluar layar.** Labelnya
+  dipersingkat karena angka pesanannya sudah tercetak besar di chip yang sama,
+  dan kalimat penuhnya dipindah ke `aria-label` supaya pembaca layar tetap
+  mendengar pelanggan mana yang dimasak.
 - **Tangga operator biner per level tidak pernah diterapkan.** `operatorsForMode`
   menaruh keempat operator biner di setiap level dan tidak pernah membaca
   `band.binaryOps`, jadi Easy level 1 menampilkan `x` dan `/` padahal tidak ada
@@ -70,7 +116,8 @@ Easy level 1, yang kebetulan merupakan satu-satunya level tanpa operator
 unary dan dengan roster tepat 4, jadi tidak satu pun dari bug di bawah
 mungkin terlihat dari sana. Jaminan solvability di `src/core` sendiri benar
 sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
-**disusun** mengikuti solusi itu.
+**disusun** mengikuti solusi itu, dan apakah yang muncul di layar bisa dibaca
+pemain.
 
 - **12 dari 15 level tidak pernah bisa diselesaikan.** Batas `MAX_ON_SCREEN`
   dihitung dari `state.orders.length`, yaitu seluruh pelanggan yang pernah
@@ -155,13 +202,21 @@ sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
 
 ### Added
 
+- **Pesan skor menyebutkan kecepatannya.** Poin untuk pelanggan sudah memuat
+  bonus kecepatan sejak awal, tapi dua skor berbeda terbaca sebagai kejadian yang
+  sama, jadi pemain tidak tahu bahwa menjawab cepat itu yang dibayar oleh sisa
+  angkanya. Sekarang sebutannya menyebut kata: `ngebut`, `cepat`, `mantap`,
+  `lambat`. Tanpa animasi baru, sesuai keputusan playtest.
 - **Jalur drag-and-drop sekarang diuji otomatis.** Smoke test sebelumnya hanya
   memakai `element.click()`, jadi tidak satu pun listener `interact.js` di
   `drag.js` pernah berjalan. Sekarang satu section menarik tile angka, operator
-  biner, dan pangkat ke stand dengan pointer event sungguhan, lalu menarik
-  piring ke chip pelanggan dan memastikan skor naik. Gerbang 44x44px di
-  `AGENTS.md` juga ditegakkan di dua lebar layar pada seluruh elemen yang bisa
-  disentuh, bukan hanya tinggi di bawah 32px pada sebagian elemen.
+  biner, dan `²` ke stand dengan pointer event sungguhan, lalu menarik piring ke
+  chip pelanggan dan memastikan skor naik. Gerbang 44x44px di `AGENTS.md` juga
+  ditegakkan di dua lebar layar pada seluruh elemen yang bisa disentuh, bukan
+  hanya tinggi di bawah 32px pada sebagian elemen.
+- **Pemulihan smoke test benar-benar memulihkan.** Level yang mati karena browser
+  hilang pagenya dicoba ulang di halaman baru, bukan di reload, karena frame
+  yang sudah lepas tidak bisa dipulihkan.
 - **`test/assets.test.js`** — palet operator rak diuji sebagai kontrak: rak harus
   menawarkan persis operator yang diizinkan band, tangga tidak boleh kehilangan
   operator antar level, pratinjau menu harus menampilkan set terlebar, dan

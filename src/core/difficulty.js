@@ -35,8 +35,12 @@ export const MODE_LIST = Object.freeze([MODES.easy, MODES.medium, MODES.hard]);
  * When every slot is taken the spawner simply stops and resumes when one frees
  * up. A customer that never got to walk in is *not* a walkout: that would
  * punish the player for something they did not do.
+ *
+ * Three, not four: at a 320px viewport a fourth chip needs a total of 414px, so
+ * it sat outside the screen and had to be scrolled to. Measured in a phone
+ * playtest, three chips already read as crowded.
  */
-export const MAX_ON_SCREEN = 4;
+export const MAX_ON_SCREEN = 3;
 
 /**
  * The spawner must never feel like a metronome (PRD 5.5), and it must never

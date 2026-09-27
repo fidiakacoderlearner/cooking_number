@@ -24,7 +24,7 @@ const STRINGS = {
     'mode.grade9': 'Grade 9',
 
     'levels.customers': '{count} customers',
-    'levels.lockedHint': 'Finish the level before this one first.',
+    'levels.lockedHint': 'Locked',
 
     'hud.level': 'Level',
     'hud.score': 'Score',
@@ -43,7 +43,8 @@ const STRINGS = {
     'customer.walkedWrong': '{target} was ordered, not {value}',
     'customer.walkedSlow': 'Ran out of patience',
     'customer.select': 'Select this customer',
-    'customer.cookFor': 'Cook for {target}',
+    'customer.cookFor': 'Cook',
+  'customer.cookForTarget': 'Cook the dish for {target}',
     'customer.serveTo': 'Serve to {target}',
     'customer.timeLeft': '{seconds} seconds left',
 
@@ -82,9 +83,13 @@ const STRINGS = {
     'action.toggleLang': 'Change language',
     'action.backToMenu': 'Back to menu',
 
-    'result.served': 'Right on! +{points} points.',
+    'result.served': 'Right on! +{points} points ({pace}).',
     'result.lost': 'That customer walked out. No points.',
     'result.points': '+{points}',
+    'result.pace.blazing': 'blazing',
+    'result.pace.fast': 'fast',
+    'result.pace.steady': 'steady',
+    'result.pace.slow': 'slow',
 
     'overlay.levelDone': 'Level complete!',
     'overlay.nextLevel': 'Next level',
@@ -118,7 +123,7 @@ const STRINGS = {
     'mode.grade9': 'Kelas 9',
 
     'levels.customers': '{count} pelanggan',
-    'levels.lockedHint': 'Selesaikan level sebelumnya dulu.',
+    'levels.lockedHint': 'Terkunci',
 
     'hud.level': 'Level',
     'hud.score': 'Skor',
@@ -137,7 +142,8 @@ const STRINGS = {
     'customer.walkedWrong': 'Pesanannya {target}, bukan {value}',
     'customer.walkedSlow': 'Kesabarannya habis',
     'customer.select': 'Pilih pelanggan ini',
-    'customer.cookFor': 'Masak untuk {target}',
+    'customer.cookFor': 'Masak',
+  'customer.cookForTarget': 'Masak hidangan untuk {target}',
     'customer.serveTo': 'Sajikan ke {target}',
     'customer.timeLeft': 'Sisa {seconds} detik',
 
@@ -176,9 +182,13 @@ const STRINGS = {
     'action.toggleLang': 'Ganti bahasa',
     'action.backToMenu': 'Kembali ke menu',
 
-    'result.served': 'Tepat sekali! +{points} poin.',
+    'result.served': 'Tepat sekali! +{points} poin ({pace}).',
     'result.lost': 'Pelanggan itu pergi. Tidak dapat poin.',
     'result.points': '+{points}',
+    'result.pace.blazing': 'ngebut',
+    'result.pace.fast': 'cepat',
+    'result.pace.steady': 'mantap',
+    'result.pace.slow': 'lambat',
 
     'overlay.levelDone': 'Level selesai!',
     'overlay.nextLevel': 'Level berikutnya',

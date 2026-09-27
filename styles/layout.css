@@ -228,9 +228,10 @@ body {
 
 .chip {
   position: relative;
-  flex: 1 0 var(--chip-min);
+  flex: 1 1 var(--chip-min);
+  min-width: 0;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: center;
   gap: 1px 5px;
@@ -299,7 +300,17 @@ body {
 }
 
 /* Patience running low is the main warning in the game, so it gets a real
-   colour change instead of asking the player to watch a bar closely. */
+   colour change instead of asking the player to watch a bar closely. Two
+   thresholds: yellow is the warning, red is the last chance. Measured in a phone
+   playtest, one threshold was not enough to act on. */
+.chip.is-warn .chip__meter-fill {
+  background: var(--butter-deep);
+}
+
+.chip.is-warn .chip__seconds {
+  color: var(--butter-deep);
+}
+
 .chip.is-urgent .chip__meter-fill {
   background: var(--tomato);
 }
@@ -310,6 +321,7 @@ body {
 
 .chip__cook {
   grid-column: 1 / -1;
+  min-width: 0;
   min-height: var(--tap-min);
   margin-top: 2px;
   background: var(--butter);
@@ -404,51 +416,35 @@ body {
   white-space: nowrap;
 }
 
-/* The finished value sits on the plate and is the player's last chance to see
-   that the dish does not match the order (AGENTS.md rule 11). It is therefore
-   larger than any other text on the play screen. */
+/* The finished value is the player's last chance to see that the dish does not
+   match the order (AGENTS.md rule 11), so it is the largest text on the play
+   screen and it sits on the plate rather than floating above it. A phone
+   playtest put it off the top edge in small type and the first reading was that
+   there was no result at all. */
 .counter__plate-value {
   position: absolute;
-  top: -14px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 1px 10px;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 14px;
   background: var(--leaf);
   color: #fff;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  font-size: 1.15rem;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+  font-size: 1.9rem;
   font-weight: 800;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .counter__plate.has-dish .counter__plate-hint {
   display: none;
 }
 
-/* The finished value sits on the plate and is the player's last chance to see
-   that the dish does not match the order (AGENTS.md rule 11), so it is larger
-   than any other text on the play screen. */
-.counter__plate-value {
-  position: absolute;
-  top: -14px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 1px 10px;
-  background: var(--leaf);
-  color: #fff;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  font-size: 1.15rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.counter__plate.has-dish .counter__plate-hint {
-  display: none;
-}
 .counter__plate.is-over {
   border-color: var(--leaf);
   transform: scale(1.04);

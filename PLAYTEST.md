@@ -69,43 +69,47 @@ video demo untuk submission.
 Satu blok per run. Tulis saja apa adanya.
 
 ```
-RUN:            ____________________  (contoh: Easy L1)
-HP:             ____________________  (contoh: Redmi 12, 360x800)
-Tanggal:        ____________________
+RUN:            Level pada mode Normal dan Hard  (contoh: Easy L1)
+HP:             Infinix Note 30 Pro  (contoh: Redmi 12, 360x800)
+Tanggal:        27 September 2026
 
 [ ] Walkout terjadi meski kamu tahu cara dan tidak lambat?
-    ->       ______________________________________________________
+    ->       iya
 
 [ ] Bar kesabaran pernah turun ke bawah 1/3 sebelum hidangan jadi?
-    ->       ______________________________________________________
+    ->       sering
 
 [ ] Berapa chip yang terlihat sekaligus?
-    ->       ______________________________________________________
+    ->       bisa sampai 4
 
 [ ] Pelanggan ke-4 datang: apakah kamu SADAR dia muncul? (lihat catatan di bawah)
-    ->       ______________________________________________________
+    ->       sadar, tapi saya tidak tau apakah di hp lain juga begitu atau tidak, hanya saja keliatannya sudah sangat mepet sekali, mungkin 3 pelanggan saja sudah cukup
 
 [ ] Level selesai sebelum pelanggan terakhir datang? Terlalu lama?
-    ->       ______________________________________________________
+    ->       tidak
 
 [ ] Waktu nyata satu puzzle: chip muncul -> tersaji
-    ->       ____ detik   (ini angka kalibrasi sesungguhnya, bukan konstanta)
+    ->       25 detik sampai walkout   (ini angka kalibrasi sesungguhnya, bukan konstanta)
 
 [ ] Tile pecahan (0.5, 1/3) membingungkan?
-    ->       ______________________________________________________
+    ->       cukup membuat kewalahan untuk kelas anak kuliahan seperti saya
 
 [ ] Tau harus tekan "Masak untuk dia", atau baru setelah salah ketuk?
-    ->       ______________________________________________________
+    ->       karena saya yang buat jadi saya tau, tapi mungkin menurut saya sebaiknya langsung saja, gausah ada tombol "masak untuk dia", dan untuk servenya itu tergantung pelanggan mana yang kita klik
 
 [ ] Saat drag tile, halaman ikut ter-scroll?
-    ->       ______________________________________________________
+    ->       tidak
 
 [ ] Sadar harus tekan "Sajian" setelah hidangan jadi?
-    ->       ______________________________________________________
+    ->       sadar
 
 [ ] Catatan lain:
-    ->       ______________________________________________________
-    ->       ______________________________________________________
+    ->       ini masih tidak mengikuti kabataku, jadi saya pernah buat -5 + -2 * -1, itu hasilnya 7, padahal sesuai kaidah matematika, harusnya kali atau bagi itu dikerjakan duluan (tergantung mana yang di sisi kiri), baru tambah atau kurang, jadi harusnya itu bernilai -3
+    ->       kedap kedip saat waktu berkurang detik demi detik pada chip pelanggan, jadi saat waktu mundur, kenapa malah kedap kedip, harusnya dibuat tetap saja, dan cuma waktunya yang berkurang terus
+    ->       untuk card level, buatnya konsisten , soalnya begini, apabila teks dalam card level itu masih dalam terkunci yang mana teks ini lebih panjang dari teks isi apabila card level sudah terbuka, itu menyebabkan perbedaan size dari card, dan itu terlihat tidak konsisten, nah saya mau itu konsisten 
+    ->       nilai akhir pada piring itu terbaca, tapi sebaiknya dibuat lebih besar dan berada benar benar di piring, karena awalnya saya kurang ngeh ada hasilnya disitu karena ukurannya kecil dan posisinya diatas
+    ->       Tambahan catatan, terkadang saya merasa kesulitan untuk bermain di normal level atas daripada di hard di level bawah, karena semakin keatas levelnya semakin banyak desimal dan pecahan yang ada 
+    ->       Terakhir, saya sering kali menemukan apabila sudah menggunakan pecahan, itu hasilnya susah sekali untuk ditemukan, untuk saya sebagai anak kuliah saja sudah kewalahan dan di level 5 normal saya cuma dapat 2/3 dari hasil maksimal  
 ```
 
 ### Dua pertanyaan yang paling penting
@@ -170,13 +174,13 @@ logika permainan.
 Salin blok ini, isi, kirim. Yang tidak ada jawabannya tidak apa-apa.
 
 ```
-Main di:             ____________________
-Level yang dicoba:   ____________________
-Yang paling pusing:  ______________________________________________________
-Yang paling enak:    ______________________________________________________
+Main di:             Infinix note 30 pro
+Level yang dicoba:   semua level easy dan normal, serta level 1 dan 2 mode hard
+Yang paling pusing:  saat bilangan sudah mencakup pecahan
+Yang paling enak:    easy saat semuanya masih bilangan bulat
 Walkout yg terjadi:  ya/tidak, level mana, menurutmu kenapa:
-                     ______________________________________________________
-Drag vs scroll:     halaman ikut ter-scroll / tidak
-Pelanggan ke-4:     sadar / tidak sadar
-Rekaman layar:      ada / tidak
+                     ya, level level normal dan hard, jika jawaban sedikit menyangkut pecahan atau angka desimal
+Drag vs scroll:      tidak
+Pelanggan ke-4:      sadar 
+Rekaman layar:       tidak
 ```

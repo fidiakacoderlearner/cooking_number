@@ -130,15 +130,23 @@ function installDrag() {
         const tile = tileFromEvent(event);
         if (!tile) return;
         event.interactable.tile = tile;
+        // The offset has to be remembered across move events. interact.js
+        // reports dx and dy as the change since the *previous* event, so writing
+        // them straight into `transform` moved the tile by one step and put it
+        // straight back, over and over. A phone playtest reported being unable
+        // to see that a tile was being dragged at all, and this is why.
+        event.interactable.offset = { x: 0, y: 0 };
         tile.node.classList.add('is-dragging');
         refreshZones();
       },
       move(event) {
         const tile = event.interactable.tile;
         if (!tile) return;
-        const x = (event.dx ?? 0) / 2;
-        const y = (event.dy ?? 0) / 2;
-        tile.node.style.transform = `translate(${x}px, ${y}px) scale(1.05)`;
+        const offset = event.interactable.offset ?? { x: 0, y: 0 };
+        offset.x += event.dx ?? 0;
+        offset.y += event.dy ?? 0;
+        event.interactable.offset = offset;
+        tile.node.style.transform = `translate(${offset.x}px, ${offset.y}px) scale(1.08) rotate(-3deg)`;
         tile.node.style.zIndex = '30';
         tile.node.style.pointerEvents = 'none';
 
@@ -148,12 +156,20 @@ function installDrag() {
       end(event) {
         const tile = event.interactable.tile;
         if (!tile) return;
+
+        // The drop target has to be read while the dragged tile is still
+        // transparent to the pointer. Restoring it first hands the hit test to
+        // the tile, which is sitting exactly under the finger, and a tile lives
+        // in the rack rather than in a drop zone, so the drop does nothing at
+        // all. This stayed hidden for as long as the drag itself was broken,
+        // because a tile that never moved was never under the finger.
+        const zone = zoneFor(document.elementFromPoint(event.client.x ?? 0, event.client.y ?? 0));
+
         tile.node.classList.remove('is-dragging');
         tile.node.style.transform = '';
         tile.node.style.zIndex = '';
         tile.node.style.pointerEvents = '';
 
-        const zone = zoneFor(document.elementFromPoint(event.client.x ?? 0, event.client.y ?? 0));
         if (zone) {
           commit(tile, zone);
         } else {

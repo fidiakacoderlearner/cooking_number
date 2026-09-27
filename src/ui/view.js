@@ -187,12 +187,28 @@ export function renderHud(state) {
  * Customer queue
  * ------------------------------------------------------------------ */
 
+/**
+ * How close to the edge a customer's patience is, as a share left.
+ *
+ * The chip is rebuilt on every render, and the controller renders once a second,
+ * so a class that simply said "this customer is on screen" would be re-applied
+ * every second. Only a genuinely new arrival may animate.
+ */
+const arrivedChipIds = new Set();
+
+/** Clear the arrival memory, so the next render treats every chip as new. */
+export function resetChipArrivals() {
+  arrivedChipIds.clear();
+}
+
 export function renderChips(state) {
   const nodes = [];
   const standEmpty = state.expression.length === 0;
+  const onScreen = new Set();
 
   for (const order of state.orders) {
     if (order.status === S.ORDER_STATUS.SERVED || order.status === S.ORDER_STATUS.WALKED) continue;
+    onScreen.add(order.id);
     const target = toDisplayString(order.puzzle.target);
 
     const chip = document.createElement('div');
@@ -200,6 +216,14 @@ export function renderChips(state) {
     chip.dataset.orderId = String(order.id);
     chip.dataset.dropZone = 'serve';
     chip.classList.add(`is-${order.status}`);
+
+    // The arrival animation is the only thing that must not repeat. Giving it to
+    // every chip on every render made the whole queue blink once a second and
+    // left the player unable to tell a new arrival from a waiting one.
+    if (!arrivedChipIds.has(order.id)) {
+      chip.classList.add('anim-arrive');
+      arrivedChipIds.add(order.id);
+    }
 
     const portrait = document.createElement('img');
     portrait.className = 'chip__portrait';
@@ -227,11 +251,23 @@ export function renderChips(state) {
     seconds.className = 'chip__seconds';
     seconds.textContent = String(Math.ceil(Math.max(0, order.timeLeft)));
 
+    // Two thresholds rather than one, so the bar is a warning before it is a
+    // last chance. A player who only ever sees one colour change learns it too
+    // late to do anything about it.
+    if (left <= 1 / 3) chip.classList.add('is-urgent');
+    else if (left <= 2 / 3) chip.classList.add('is-warn');
+
     chip.append(portrait, targetEl, meter, seconds);
 
     // Only the stand's own customer can be cooked, so the button is the only
     // way to commit. It disappears once the stand is loaded, which is what
     // makes the two-step flow obvious instead of a mode the player has to learn.
+    //
+    // The visible label is just "Cook" because the order is already printed
+    // large on this same chip, and the full phrase was the widest thing in the
+    // queue: at 320px it pushed a full queue of three past the edge of the
+    // screen. The full sentence is still the accessible name, so a screen
+    // reader hears which customer is being cooked for.
     if (order.status === S.ORDER_STATUS.COOKING) {
       chip.classList.add('is-locked');
     } else if (standEmpty) {
@@ -240,8 +276,8 @@ export function renderChips(state) {
       cook.className = 'chip__cook';
       cook.dataset.action = 'cook-for';
       cook.dataset.orderId = String(order.id);
-      cook.textContent = t('customer.cookFor', { target });
-      cook.setAttribute('aria-label', t('customer.cookFor', { target }));
+      cook.textContent = t('customer.cookFor');
+      cook.setAttribute('aria-label', t('customer.cookForTarget', { target }));
       chip.append(cook);
     }
 
@@ -250,6 +286,9 @@ export function renderChips(state) {
   }
 
   dom.queueStrip.replaceChildren(...nodes);
+  for (const id of arrivedChipIds) {
+    if (!onScreen.has(id)) arrivedChipIds.delete(id);
+  }
   renderQueueNext(state);
 }
 
@@ -309,10 +348,28 @@ function slotClass(item) {
   return 'slot';
 }
 
+const ROOT_SIGN = '\u221a';
+
 function renderWorkspace(state) {
   const nodes = [];
+  // The slot a root sign would wrap, if the next item is one. A power does not
+  // need this: `16` then `2` already reads as 16 squared, because that is how a
+  // power is written. A root is the other way round, `16` then the sign reads
+  // as a number followed by an operator, when the written form is the sign
+  // around the number. Found in a phone playtest, where the value had to be put
+  // in first and only then the sign.
+  let openNumberSlot = null;
 
-  state.expression.forEach((item, index) => {
+  for (const item of state.expression) {
+    if (item.kind === 'unary' && item.op === 'sqrt' && openNumberSlot) {
+      // The modifier is added, not swapped in: dropping the base class would
+      // take the slot out of `.slot` entirely, losing its layout and its place
+      // in the strip without anything visibly going wrong.
+      openNumberSlot.textContent = `${ROOT_SIGN}${openNumberSlot.textContent}`;
+      openNumberSlot.classList.add('slot--root');
+      continue;
+    }
+
     const slot = document.createElement('div');
     slot.className = slotClass(item);
     if (item.kind === 'number') {
@@ -320,12 +377,11 @@ function renderWorkspace(state) {
     } else if (item.kind === 'operator') {
       slot.textContent = OPERATORS[item.op]?.symbol ?? '?';
     } else {
-      slot.textContent = item.op === 'sqrt' ? '\u221a' : (item.exponent === 3 ? '\u00b3' : '\u00b2');
+      slot.textContent = item.op === 'sqrt' ? ROOT_SIGN : (item.exponent === 3 ? '\u00b3' : '\u00b2');
     }
-    slot.dataset.slotIndex = String(index);
-    slot.dataset.draggable = 'true';
+    openNumberSlot = item.kind === 'number' ? slot : null;
     nodes.push(slot);
-  });
+  }
 
   if (nodes.length === 0) {
     const dropzone = document.createElement('div');
@@ -428,6 +484,7 @@ export const VIEW = {
   renderLevelGrid,
   renderModeCards,
   applyStaticStrings,
+  resetChipArrivals,
   feedback,
   toast,
   bump,

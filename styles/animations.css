@@ -83,8 +83,10 @@
 }
 
 /* A customer walking in. The whole point of the queue is that arrivals are
-   noticeable, otherwise the pressure builds invisibly. */
-.chip {
+   noticeable, otherwise the pressure builds invisibly. Applied by the view only
+   to a chip that has just arrived, because the queue is rebuilt every second and
+   a chip-wide animation made the whole row blink once a second. */
+.anim-arrive {
   animation: pop-in 180ms ease-out both;
 }
 
