@@ -4,3 +4,6 @@ node_modules/
 .vscode/
 .idea/
 .opencode/
+
+# Design mockups from review, kept locally and not part of the shipped game.
+mockup-*.png
