@@ -1,15 +1,30 @@
 import fs from 'node:fs';
 
+/**
+ * Every module the gate is supposed to cover. The UI used to be missing from
+ * this list entirely, which is how two dead imports survived in src/ui.
+ */
 const files = [
   'src/core/rational.js',
   'src/core/operators.js',
   'src/core/evaluate.js',
   'src/core/difficulty.js',
   'src/core/generator.js',
+  'src/ui/progress.js',
+  'src/ui/i18n.js',
+  'src/ui/assets.js',
+  'src/ui/state.js',
+  'src/ui/view.js',
+  'src/ui/drag.js',
+  'src/ui/controller.js',
+  'src/ui/app.js',
   'scripts/inspect-puzzles.js',
   'test/rational.test.js',
   'test/evaluate.test.js',
   'test/generator.test.js',
+  'test/difficulty.test.js',
+  'test/progress.test.js',
+  'test/state.test.js',
 ];
 
 let problems = 0;

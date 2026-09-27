@@ -124,7 +124,7 @@ body {
 
 .hud {
   display: grid;
-  grid-template-columns: auto repeat(4, 1fr);
+  grid-template-columns: auto repeat(3, 1fr);
   gap: 6px;
   position: relative;
   padding-bottom: 10px;
@@ -170,15 +170,8 @@ body {
   white-space: nowrap;
 }
 
-.hud__lives {
-  display: flex;
-  gap: 2px;
-  font-size: 0.95rem;
-  line-height: 1;
-}
-
-.hud__timer.is-warning {
-  color: var(--tomato);
+.hud__cell--served .hud__value {
+  color: var(--leaf);
 }
 
 .hud__progress {
@@ -203,67 +196,171 @@ body {
   background: var(--tomato);
 }
 
-/* -------------------------------------------------------------- Order */
+/* ------------------------------------------------------------- Queue */
 
-.order {
+.queue {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 6px 4px;
   background: var(--paper);
   border: var(--stroke) solid var(--ink);
   border-radius: var(--radius);
-  padding: 8px 10px;
   box-shadow: var(--shadow-hard-sm);
 }
 
-.order__customer {
+.queue__strip {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 6px;
-  min-width: 0;
+  min-height: var(--chip-min);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.order__portrait {
-  width: 52px;
-  height: 62px;
-  flex: none;
-}
-
-.order__bubble {
-  position: relative;
-  background: var(--plate);
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 0.8rem;
+.queue__next {
+  font-size: 0.68rem;
   font-weight: 700;
-  white-space: nowrap;
-}
-
-.order__target {
-  margin-left: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 0;
-}
-
-.order__target-label {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--ink-soft);
-  font-weight: 700;
+  text-align: center;
+  min-height: 1em;
 }
 
-.order__target-value {
-  font-size: clamp(1.6rem, 9vw, 2.2rem);
+.chip {
+  position: relative;
+  flex: 1 0 var(--chip-min);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 1px 5px;
+  padding: 4px 5px;
+  background: var(--plate);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard-sm);
+  touch-action: none;
+}
+
+.chip.is-selected {
+  border-color: var(--butter-deep);
+  background: #fff8dd;
+  transform: translateY(-2px);
+}
+
+.chip.is-cooking {
+  border-color: var(--leaf);
+  background: #f2fbf0;
+}
+
+.chip.is-over {
+  border-color: var(--leaf);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-hard);
+}
+
+.chip__portrait {
+  grid-row: 1 / span 2;
+  width: 34px;
+  height: 40px;
+}
+
+.chip__target {
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--tomato);
   font-variant-numeric: tabular-nums;
-  line-height: 1.05;
+  line-height: 1;
 }
 
+.chip__meter {
+  grid-column: 2;
+  height: 6px;
+  background: var(--plate-shade);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.chip__meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--leaf);
+  transition: width 250ms linear;
+}
+
+.chip__seconds {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+/* Patience running low is the main warning in the game, so it gets a real
+   colour change instead of asking the player to watch a bar closely. */
+.chip.is-urgent .chip__meter-fill {
+  background: var(--tomato);
+}
+
+.chip.is-urgent .chip__seconds {
+  color: var(--tomato);
+}
+
+.chip__cook {
+  grid-column: 1 / -1;
+  min-height: 32px;
+  margin-top: 2px;
+  background: var(--butter);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip__cook:active {
+  transform: translateY(1px);
+}
+
+/* -------------------------------------------------------------- Stand */
+
+.stand {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.stand__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--butter);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+}
+
+.stand__head[hidden] {
+  display: none;
+}
+
+.stand__portrait {
+  width: 30px;
+  height: 36px;
+  flex: none;
+}
+
+.stand__for {
+  font-size: 0.82rem;
+  font-weight: 800;
+}
 /* ------------------------------------------------------------ Counter */
 
 .counter {
@@ -307,6 +404,51 @@ body {
   white-space: nowrap;
 }
 
+/* The finished value sits on the plate and is the player's last chance to see
+   that the dish does not match the order (AGENTS.md rule 11). It is therefore
+   larger than any other text on the play screen. */
+.counter__plate-value {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 10px;
+  background: var(--leaf);
+  color: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.counter__plate.has-dish .counter__plate-hint {
+  display: none;
+}
+
+/* The finished value sits on the plate and is the player's last chance to see
+   that the dish does not match the order (AGENTS.md rule 11), so it is larger
+   than any other text on the play screen. */
+.counter__plate-value {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 10px;
+  background: var(--leaf);
+  color: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.counter__plate.has-dish .counter__plate-hint {
+  display: none;
+}
 .counter__plate.is-over {
   border-color: var(--leaf);
   transform: scale(1.04);
@@ -356,37 +498,6 @@ body {
 
 .workspace.has-content .workspace__empty {
   display: none;
-}
-
-/* ------------------------------------------------------------ Running */
-
-.running {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 4px 10px;
-  background: var(--butter);
-  border: var(--stroke) solid var(--ink);
-  border-radius: 999px;
-  align-self: center;
-}
-
-.running[hidden] {
-  display: none;
-}
-
-.running__label {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 800;
-}
-
-.running__value {
-  font-size: 1.2rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ----------------------------------------------------------- Feedback */
@@ -488,8 +599,8 @@ body {
     font-size: 1.2rem;
   }
 
-  .order__portrait {
-    width: 64px;
-    height: 76px;
+  .chip__portrait {
+    width: 40px;
+    height: 48px;
   }
 }

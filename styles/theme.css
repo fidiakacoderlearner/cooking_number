@@ -161,11 +161,6 @@
   font-size: 1.15rem;
 }
 
-.tile--target {
-  background: var(--tomato);
-  color: #fff;
-}
-
 .tile:active {
   transform: translateY(2px);
   box-shadow: 0 1px 0 0 var(--ink);
@@ -189,13 +184,6 @@
 .tile.is-used {
   opacity: 0.3;
   pointer-events: none;
-}
-
-.tile.is-selected {
-  transform: translateY(2px);
-  box-shadow: 0 0 0 0 var(--ink);
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
 }
 
 .tile.is-dragging {
@@ -258,9 +246,11 @@
   z-index: 30;
 }
 
+/* The dropzone is clickable on small screens, so it has to meet the same touch
+   minimum as every other target (PRD 5.4). */
 .slot--dropzone {
-  min-width: 40px;
-  min-height: 40px;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
   border-style: dashed;
   border-color: var(--ink-soft);
   background: transparent;

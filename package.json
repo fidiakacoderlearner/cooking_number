@@ -1,8 +1,8 @@
 {
-  "name": "number-kitchen",
-  "version": "0.1.0",
+  "name": "cooking-number",
+  "version": "0.2.0",
   "private": true,
-  "description": "Number Kitchen - educational math game for junior high school students",
+  "description": "Cooking Number - customers keep coming in, cook the number they ordered and serve it before they lose patience",
   "type": "module",
   "scripts": {
     "test": "node --test",

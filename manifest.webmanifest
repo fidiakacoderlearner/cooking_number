@@ -1,7 +1,7 @@
 {
-  "name": "Number Kitchen",
-  "short_name": "Number Kitchen",
-  "description": "Cook the number the customer ordered by combining tiles and operators.",
+  "name": "Cooking Number",
+  "short_name": "Cooking Number",
+  "description": "Customers keep coming in. Cook the number they ordered and serve it before they lose patience.",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",

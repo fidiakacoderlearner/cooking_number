@@ -1,17 +1,25 @@
 /**
- * Difficulty configuration for the three modes (PRD section 5.1 / 5.7).
+ * Difficulty configuration for the three modes (PRD section 5.1 / 5.5 / 5.7).
  *
- * Each mode has five levels. Per PRD 5.7 complexity rises *between* modes while
- * levels only add more orders, so a level narrows or widens the number range
- * slightly and never introduces a new operator.
+ * Each mode has five levels. A level is described by three dials that all turn
+ * in the same direction as the level number:
+ *
+ *   1. the roster, how many customers the level owes you,
+ *   2. the spawner and the patience of each customer (PRD 5.5),
+ *   3. the operator ladder, which narrows the arithmetic the player may use
+ *      (PRD 5.1).
+ *
+ * Nothing in here is a final number. Every value below is a starting point for
+ * playtesting on a real phone, and changing one must never require touching
+ * gameplay logic.
  */
 
 import { rat } from './rational.js';
 
-/** Orders per level, shared by all three modes (2 / 3 / 4 / 4 / 5). */
-export const ORDERS_PER_LEVEL = Object.freeze([2, 3, 4, 4, 5]);
+/** Customers owed per level, shared by all three modes. */
+export const CUSTOMERS_PER_LEVEL = Object.freeze([4, 5, 6, 7, 8]);
 
-export const LEVELS_PER_MODE = ORDERS_PER_LEVEL.length;
+export const LEVELS_PER_MODE = CUSTOMERS_PER_LEVEL.length;
 
 export const MODES = Object.freeze({
   easy: 'easy',
@@ -22,7 +30,23 @@ export const MODES = Object.freeze({
 export const MODE_LIST = Object.freeze([MODES.easy, MODES.medium, MODES.hard]);
 
 /**
- * A band describes the numeric envelope the generator may work inside.
+ * How many customers may wait at the stand at once (PRD 5.5).
+ *
+ * When every slot is taken the spawner simply stops and resumes when one frees
+ * up. A customer that never got to walk in is *not* a walkout: that would
+ * punish the player for something they did not do.
+ */
+export const MAX_ON_SCREEN = 4;
+
+/**
+ * The spawner must never feel like a metronome (PRD 5.5), and it must never
+ * fall so far below its base interval that a level becomes impossible.
+ */
+export const ARRIVAL_JITTER = 0.12;
+export const ARRIVAL_DECAY = 0.025;
+export const ARRIVAL_FLOOR = 0.6;
+
+/**
  * @typedef {{
  *   min: number, max: number,
  *   stepMin: number, stepMax: number,
@@ -64,25 +88,86 @@ const BASE = {
  */
 const LEVEL_SPREAD = [0, 1, 2, 3, 4];
 
-function band(level, overrides) {
-  const spread = LEVEL_SPREAD[level - 1];
-  const base = overrides;
-  const maxAbsIngredient = base.maxAbsIngredient + spread * base.spreadStep;
-  return Object.freeze({
-    ...BASE,
-    ...base,
-    maxAbsIngredient,
-    min: base.allowNegatives ? -maxAbsIngredient : 0,
-    max: maxAbsIngredient,
-  });
-}
+/**
+ * The operator ladder (PRD 5.1). Restricting the operators also restricts the
+ * arithmetic the generator may use, which is why every entry here has to stay
+ * solvable. The generator and the UI both read this list, so the puzzle and the
+ * tiles on screen can never drift apart.
+ */
+const OPERATOR_LADDER = Object.freeze({
+  [MODES.easy]: Object.freeze([
+    Object.freeze(['add', 'sub']),
+    Object.freeze(['add', 'sub', 'mul']),
+    Object.freeze(['add', 'sub', 'mul']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+  ]),
+  [MODES.medium]: Object.freeze([
+    Object.freeze(['add', 'sub', 'mul']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+  ]),
+  [MODES.hard]: Object.freeze([
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+    Object.freeze(['add', 'sub', 'mul', 'div']),
+  ]),
+});
+
+/**
+ * Unary operators join the ladder level by level, separately from the binary
+ * set, because "squares exist" is a different idea from "division exists".
+ */
+const UNARY_LADDER = Object.freeze({
+  [MODES.easy]: Object.freeze([
+    Object.freeze([]),
+    Object.freeze([]),
+    Object.freeze([]),
+    Object.freeze([]),
+    Object.freeze([]),
+  ]),
+  [MODES.medium]: Object.freeze([
+    Object.freeze([]),
+    Object.freeze([]),
+    Object.freeze([]),
+    Object.freeze(['pow']),
+    Object.freeze(['pow']),
+  ]),
+  [MODES.hard]: Object.freeze([
+    Object.freeze(['pow']),
+    Object.freeze(['pow']),
+    Object.freeze(['pow', 'sqrt']),
+    Object.freeze(['pow', 'sqrt']),
+    Object.freeze(['pow', 'sqrt']),
+  ]),
+});
+
+/** Base seconds between arrivals, per mode, per level (PRD 5.5). */
+const ARRIVAL_SECONDS = Object.freeze({
+  [MODES.easy]: Object.freeze([15, 14, 13, 12, 11]),
+  [MODES.medium]: Object.freeze([12, 11, 10, 10, 9]),
+  [MODES.hard]: Object.freeze([10, 9, 9, 8, 8]),
+});
+
+/**
+ * Patience in seconds per customer, per mode, per level (PRD 5.5). This is how
+ * long one customer waits, not how long the whole level lasts.
+ */
+const PATIENCE_SECONDS = Object.freeze({
+  [MODES.easy]: Object.freeze([50, 48, 46, 44, 42]),
+  [MODES.medium]: Object.freeze([44, 42, 40, 37, 34]),
+  [MODES.hard]: Object.freeze([38, 36, 33, 30, 28]),
+});
 
 /**
  * Easy, grade 7: integers including negatives, binary operators only.
  * Level 1 starts at 0-6 so a 12 year old can find the answer almost immediately.
  */
 const EASY = Object.freeze({
-  binaryOps: Object.freeze(['add', 'sub', 'mul', 'div']),
   maxAbsIngredient: 6,
   spreadStep: 2,
   stepMin: 2,
@@ -97,8 +182,6 @@ const EASY = Object.freeze({
 
 /** Medium, grade 8: fractions and decimals enter the mix, exponent optional. */
 const MEDIUM = Object.freeze({
-  binaryOps: Object.freeze(['add', 'sub', 'mul', 'div']),
-  unaryOps: Object.freeze(['pow']),
   maxAbsIngredient: 9,
   spreadStep: 3,
   stepMin: 2,
@@ -115,8 +198,6 @@ const MEDIUM = Object.freeze({
 
 /** Hard, grade 9: powers and square roots, longer chains. */
 const HARD = Object.freeze({
-  binaryOps: Object.freeze(['add', 'sub', 'mul', 'div']),
-  unaryOps: Object.freeze(['pow', 'sqrt']),
   maxAbsIngredient: 12,
   spreadStep: 3,
   stepMin: 3,
@@ -129,8 +210,11 @@ const HARD = Object.freeze({
   maxPowExponent: 3,
   fractionChance: 0.3,
   maxFractionDenominator: 4,
-  /** Hard must genuinely practise roots and powers, not just big numbers. */
-  minUnarySteps: 1,
+  /**
+   * Hard must genuinely practise roots and powers, not just big numbers, so
+   * once a level unlocks them it insists on using at least one.
+   */
+  requireUnarySteps: true,
   /**
    * Hard targets are usually the output of a square root, so the target pool is
    * biased towards perfect squares and cubes that a unary operator can invert.
@@ -152,6 +236,25 @@ export function isValidLevel(level) {
   return Number.isInteger(level) && level >= 1 && level <= LEVELS_PER_MODE;
 }
 
+function band(level, mode) {
+  const base = BAND_FACTORIES[mode];
+  const spread = LEVEL_SPREAD[level - 1];
+  const maxAbsIngredient = base.maxAbsIngredient + spread * base.spreadStep;
+  const unaryOps = UNARY_LADDER[mode][level - 1];
+
+  return Object.freeze({
+    ...BASE,
+    ...base,
+    binaryOps: OPERATOR_LADDER[mode][level - 1],
+    unaryOps,
+    // Only insist on a unary step once the ladder has actually unlocked one.
+    minUnarySteps: base.requireUnarySteps && unaryOps.length > 0 ? 1 : 0,
+    maxAbsIngredient,
+    min: base.allowNegatives ? -maxAbsIngredient : 0,
+    max: maxAbsIngredient,
+  });
+}
+
 /**
  * Resolve the configuration band for a mode/level pair.
  * @param {string} mode 'easy' | 'medium' | 'hard'
@@ -160,36 +263,71 @@ export function isValidLevel(level) {
 export function getBand(mode, level) {
   if (!isValidMode(mode)) throw new Error(`unknown mode: ${mode}`);
   if (!isValidLevel(level)) throw new Error(`level must be 1..${LEVELS_PER_MODE}, got ${level}`);
-  return band(level, BAND_FACTORIES[mode]);
+  return band(level, mode);
 }
 
-/** How many orders a level contains. */
-export function ordersForLevel(level) {
+/** How many customers a level owes the player. */
+export function customersForLevel(level) {
   if (!isValidLevel(level)) throw new Error(`level must be 1..${LEVELS_PER_MODE}, got ${level}`);
-  return ORDERS_PER_LEVEL[level - 1];
+  return CUSTOMERS_PER_LEVEL[level - 1];
+}
+
+/** Base seconds between arrivals, before jitter and decay (PRD 5.5). */
+export function baseArrivalSeconds(mode, level) {
+  if (!isValidMode(mode)) throw new Error(`unknown mode: ${mode}`);
+  if (!isValidLevel(level)) throw new Error(`level must be 1..${LEVELS_PER_MODE}, got ${level}`);
+  return ARRIVAL_SECONDS[mode][level - 1];
+}
+
+/** How long a single customer waits before walking out (PRD 5.5). */
+export function patienceSeconds(mode, level) {
+  if (!isValidMode(mode)) throw new Error(`unknown mode: ${mode}`);
+  if (!isValidLevel(level)) throw new Error(`level must be 1..${LEVELS_PER_MODE}, got ${level}`);
+  return PATIENCE_SECONDS[mode][level - 1];
 }
 
 /**
- * Seconds allowed per order, settled by the team. Kept short on purpose: these
- * are the numbers to adjust first after playtesting (PRD 5.5).
+ * Seconds to wait before the customer with the given index walks in.
+ *
+ * The first customer arrives right away, so `index` 0 is the gap *after* them.
+ * Each later customer is both a little faster than the one before (decay) and a
+ * little unpredictable (jitter), because a fixed interval feels like a clock
+ * rather than a queue of hungry people.
+ *
+ * @param {string} mode
+ * @param {number} level
+ * @param {number} index 0 for the gap after the first customer
+ * @param {() => number} [rng]
  */
-export const TIMER_SECONDS = Object.freeze({
-  [MODES.easy]: 30,
-  [MODES.medium]: 20,
-  [MODES.hard]: 15,
-});
+export function arrivalGapSeconds(mode, level, index, rng = Math.random) {
+  const base = baseArrivalSeconds(mode, level);
+  const decayed = base * Math.max(0, 1 - ARRIVAL_DECAY * index);
+  const jittered = decayed * (1 + ARRIVAL_JITTER * (rng() * 2 - 1));
+  return Math.max(base * ARRIVAL_FLOOR, jittered);
+}
 
-export const LIVES_PER_LEVEL = 3;
+/** The smallest gap this configuration can ever produce, for the quality gate. */
+export function minArrivalGapSeconds(mode, level) {
+  const base = baseArrivalSeconds(mode, level);
+  const worst = base * Math.max(0, 1 - ARRIVAL_DECAY * LEVELS_PER_MODE) * (1 - ARRIVAL_JITTER);
+  return Math.max(base * ARRIVAL_FLOOR, worst);
+}
 
 export const DIFFICULTY = {
   MODES,
   MODE_LIST,
   LEVELS_PER_MODE,
-  ORDERS_PER_LEVEL,
-  TIMER_SECONDS,
-  LIVES_PER_LEVEL,
+  CUSTOMERS_PER_LEVEL,
+  MAX_ON_SCREEN,
+  ARRIVAL_JITTER,
+  ARRIVAL_DECAY,
+  ARRIVAL_FLOOR,
   getBand,
-  ordersForLevel,
+  customersForLevel,
+  baseArrivalSeconds,
+  patienceSeconds,
+  arrivalGapSeconds,
+  minArrivalGapSeconds,
   isValidMode,
   isValidLevel,
   rat,

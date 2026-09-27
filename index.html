@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fff6e6">
-<meta name="description" content="Number Kitchen - reach the number the customer ordered by combining tiles and operators.">
-<title>Number Kitchen</title>
+<meta name="description" content="Cooking Number - customers keep coming in. Cook the number they ordered and serve it before they lose patience.">
+<title>Cooking Number</title>
 <link rel="icon" href="favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="assets/placeholder/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -20,8 +20,8 @@
 <section class="screen screen--menu" data-screen-name="menu">
   <header class="menu__header">
     <img class="menu__hat" src="assets/placeholder/chef-hat.webp" alt="" width="96" height="96">
-    <h1 class="menu__title" data-i18n="app.title">Number Kitchen</h1>
-    <p class="menu__tagline" data-i18n="app.tagline">Cook the number the customer ordered.</p>
+    <h1 class="menu__title" data-i18n="app.title">Cooking Number</h1>
+    <p class="menu__tagline" data-i18n="app.tagline">Cook the number. Serve the customer.</p>
   </header>
 
   <div class="menu__modes" role="group" aria-labelledby="mode-heading">
@@ -29,28 +29,28 @@
 
     <button class="mode-card" data-mode="easy" type="button">
       <span class="mode-card__name" data-i18n="mode.easy">Easy</span>
-      <span class="mode-card__grade">Grade 7</span>
+      <span class="mode-card__grade" data-i18n="mode.grade7">Grade 7</span>
       <span class="mode-card__detail" data-i18n="mode.easyDetail">Integers, including negatives</span>
-      <span class="mode-card__ops" aria-hidden="true">+ &minus; &times; &divide;</span>
+      <span class="mode-card__ops" data-mode-ops="easy" aria-hidden="true"></span>
     </button>
 
     <button class="mode-card" data-mode="medium" type="button">
       <span class="mode-card__name" data-i18n="mode.medium">Medium</span>
-      <span class="mode-card__grade">Grade 8</span>
+      <span class="mode-card__grade" data-i18n="mode.grade8">Grade 8</span>
       <span class="mode-card__detail" data-i18n="mode.mediumDetail">Fractions join the menu</span>
-      <span class="mode-card__ops" aria-hidden="true">+ &minus; &times; &divide; x&sup2;</span>
+      <span class="mode-card__ops" data-mode-ops="medium" aria-hidden="true"></span>
     </button>
 
     <button class="mode-card" data-mode="hard" type="button">
       <span class="mode-card__name" data-i18n="mode.hard">Hard</span>
-      <span class="mode-card__grade">Grade 9</span>
+      <span class="mode-card__grade" data-i18n="mode.grade9">Grade 9</span>
       <span class="mode-card__detail" data-i18n="mode.hardDetail">Powers and square roots</span>
-      <span class="mode-card__ops" aria-hidden="true">+ &minus; &times; &divide; x&sup2; x&sup3; &radic;</span>
+      <span class="mode-card__ops" data-mode-ops="hard" aria-hidden="true"></span>
     </button>
   </div>
 
   <footer class="menu__footer">
-    <button class="lang-toggle" type="button" data-action="toggle-lang" aria-label="Change language">
+    <button class="lang-toggle" type="button" data-action="toggle-lang" data-i18n-aria="action.toggleLang" aria-label="Change language">
       <span data-i18n="menu.language">Language</span>: <strong data-lang-current>EN</strong>
     </button>
   </footer>
@@ -73,73 +73,65 @@
 
   <header class="hud">
     <button class="hud__quit" type="button" data-action="back-to-menu"
-            aria-label="Back to menu" title="Back to menu">&#9776;</button>
-    <div class="hud__cell hud__cell--mode">
+            data-i18n-aria="action.backToMenu" aria-label="Back to menu" title="Back to menu">&#9776;</button>
+    <div class="hud__cell hud__cell--level">
       <span class="hud__label" data-i18n="hud.level">Level</span>
-      <span class="hud__value" data-hud-level>1/5</span>
+      <span class="hud__value" data-hud-level>1</span>
     </div>
-    <div class="hud__cell hud__cell--lives">
-      <span class="hud__label" data-i18n="hud.lives">Lives</span>
-      <span class="hud__value hud__lives" data-hud-lives aria-live="polite"></span>
+    <div class="hud__cell hud__cell--served">
+      <span class="hud__label" data-i18n="hud.served">Served</span>
+      <span class="hud__value" data-hud-served>0/0</span>
     </div>
     <div class="hud__cell hud__cell--score">
       <span class="hud__label" data-i18n="hud.score">Score</span>
       <span class="hud__value" data-hud-score>0</span>
-    </div>
-    <div class="hud__cell hud__cell--timer">
-      <span class="hud__label" data-i18n="hud.time">Time</span>
-      <span class="hud__value hud__timer" data-hud-timer>30</span>
     </div>
     <div class="hud__progress" aria-hidden="true">
       <div class="hud__progress-fill" data-hud-progress></div>
     </div>
   </header>
 
-  <div class="order">
-    <div class="order__customer">
-      <img class="order__portrait" data-order-customer src="assets/placeholder/customer-1.webp"
-           alt="" width="160" height="190">
-      <p class="order__bubble" data-i18n="order.bubble">I want</p>
+  <section class="queue" data-queue aria-label="Customers">
+    <div class="queue__strip" data-queue-strip></div>
+    <p class="queue__next" data-queue-next></p>
+  </section>
+
+  <div class="stand">
+    <div class="stand__head" data-stand-head hidden>
+      <img class="stand__portrait" data-stand-portrait src="" alt="" width="48" height="56">
+      <span class="stand__for" data-stand-for></span>
     </div>
-    <div class="order__target">
-      <span class="order__target-label" data-i18n="order.yourTarget">Your target</span>
-      <span class="order__target-value" data-order-target>0</span>
+
+    <div class="counter">
+      <div class="counter__plate" data-drop-zone="serve" data-draggable="true">
+        <img class="counter__plate-img" src="assets/placeholder/plate.webp" alt="" width="200" height="120">
+        <span class="counter__plate-value" data-plate-value></span>
+        <span class="counter__plate-hint" data-i18n="stand.dropHere">Drag the dish to a customer</span>
+      </div>
     </div>
-  </div>
 
-  <div class="counter">
-    <div class="counter__plate" data-drop-zone="serve">
-      <img class="counter__plate-img" src="assets/placeholder/plate.webp" alt="" width="200" height="120">
-      <span class="counter__plate-hint" data-i18n="order.dropHere">Drop here to serve</span>
+    <div class="workspace" data-workspace>
+      <div class="workspace__line" data-workspace-line></div>
+      <p class="workspace__empty" data-workspace-empty data-i18n="work.dragHint">
+        Tap number and operator tiles to build a dish.
+      </p>
     </div>
-  </div>
 
-  <div class="workspace" data-workspace>
-    <div class="workspace__line" data-workspace-line></div>
-    <p class="workspace__empty" data-workspace-empty data-i18n="work.dragHint">
-      Drag a number tile up here to start.
-    </p>
-  </div>
+    <div class="feedback" data-feedback hidden>
+      <p class="feedback__text" data-feedback-text></p>
+    </div>
 
-  <div class="running" data-running hidden>
-    <span class="running__label" data-i18n="work.running">Running total</span>
-    <span class="running__value" data-running-value>0</span>
-  </div>
-
-  <div class="feedback" data-feedback hidden>
-    <p class="feedback__text" data-feedback-text></p>
-  </div>
-
-  <div class="controls">
-    <button class="btn btn--serve" type="button" data-action="serve" disabled>
-      <span data-i18n="action.serve">Serve</span>
-    </button>
-    <button class="btn btn--ghost" type="button" data-action="undo">
-      <span data-i18n="action.undo">Undo</span>
-    </button>
-    <button class="btn btn--ghost" type="button" data-action="clear">
-      <span data-i18n="action.clear">Clear</span>
-    </button>
+    <div class="controls">
+      <button class="btn btn--serve" type="button" data-action="serve" disabled>
+        <span data-i18n="action.serve">Serve</span>
+      </button>
+      <button class="btn btn--ghost" type="button" data-action="undo">
+        <span data-i18n="action.undo">Undo</span>
+      </button>
+      <button class="btn btn--ghost" type="button" data-action="clear">
+        <span data-i18n="action.clear">Clear</span>
+      </button>
+    </div>
   </div>
 
   <div class="rack">
@@ -150,27 +142,13 @@
 
 <!-- ============================= OVERLAYS ============================= -->
 <div class="overlay" data-overlay="level" hidden>
-  <div class="overlay__card">
-    <h2 class="overlay__title" data-i18n="overlay.levelDone">Level complete!</h2>
+  <div class="overlay__card" role="dialog" aria-modal="true" aria-labelledby="overlay-level-title">
+    <h2 class="overlay__title" id="overlay-level-title" data-i18n="overlay.levelDone">Level complete!</h2>
+    <p class="overlay__text" data-overlay-summary></p>
     <p class="overlay__text" data-overlay-score></p>
     <div class="overlay__actions">
       <button class="btn btn--primary" type="button" data-action="next-level">
         <span data-i18n="overlay.nextLevel">Next level</span>
-      </button>
-      <button class="btn btn--ghost" type="button" data-action="back-to-menu">
-        <span data-i18n="overlay.menu">Menu</span>
-      </button>
-    </div>
-  </div>
-</div>
-
-<div class="overlay" data-overlay="gameover" hidden>
-  <div class="overlay__card">
-    <h2 class="overlay__title" data-i18n="overlay.gameOver">Out of lives</h2>
-    <p class="overlay__text" data-overlay-final></p>
-    <div class="overlay__actions">
-      <button class="btn btn--primary" type="button" data-action="retry-level">
-        <span data-i18n="overlay.retry">Try again</span>
       </button>
       <button class="btn btn--ghost" type="button" data-action="back-to-menu">
         <span data-i18n="overlay.menu">Menu</span>

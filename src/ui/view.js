@@ -5,9 +5,9 @@
  */
 
 import { toDisplayString } from '../core/rational.js';
-import { ordersForLevel } from '../core/difficulty.js';
+import { customersForLevel, MAX_ON_SCREEN } from '../core/difficulty.js';
 import { t } from './i18n.js';
-import { ASSETS, OPERATORS, operatorsForMode, customerFor } from './assets.js';
+import { ASSETS, OPERATORS, operatorsForMode, operatorsForLevel, customerFor } from './assets.js';
 import * as S from './state.js';
 
 const el = (sel) => document.querySelector(sel);
@@ -17,20 +17,28 @@ const dom = {};
 export function cacheDom() {
   dom.screens = [...document.querySelectorAll('[data-screen-name]')];
   dom.menuHat = el('.menu__hat');
+  dom.modeOps = [...document.querySelectorAll('[data-mode-ops]')];
   dom.modeTitle = el('[data-mode-title]');
   dom.levelGrid = el('[data-level-grid]');
+
   dom.hudLevel = el('[data-hud-level]');
-  dom.hudLives = el('[data-hud-lives]');
+  dom.hudServed = el('[data-hud-served]');
   dom.hudScore = el('[data-hud-score]');
-  dom.hudTimer = el('[data-hud-timer]');
   dom.hudProgress = el('[data-hud-progress]');
-  dom.orderCustomer = el('[data-order-customer]');
-  dom.orderTarget = el('[data-order-target]');
+
+  dom.queue = el('[data-queue]');
+  dom.queueStrip = el('[data-queue-strip]');
+  dom.queueNext = el('[data-queue-next]');
+
+  dom.standHead = el('[data-stand-head]');
+  dom.standPortrait = el('[data-stand-portrait]');
+  dom.standFor = el('[data-stand-for]');
+
   dom.plate = el('[data-drop-zone="serve"]');
+  dom.plateValue = el('[data-plate-value]');
   dom.workspace = el('[data-workspace]');
   dom.workspaceLine = el('[data-workspace-line]');
-  dom.running = el('[data-running]');
-  dom.runningValue = el('[data-running-value]');
+  dom.workspaceEmpty = el('[data-workspace-empty]');
   dom.feedback = el('[data-feedback]');
   dom.feedbackText = el('[data-feedback-text]');
   dom.serveBtn = el('[data-action="serve"]');
@@ -38,10 +46,10 @@ export function cacheDom() {
   dom.rackOperators = el('[data-rack-operators]');
   dom.toast = el('[data-toast]');
   dom.langCurrent = el('[data-lang-current]');
+
   dom.overlayLevel = el('[data-overlay="level"]');
-  dom.overlayGameOver = el('[data-overlay="gameover"]');
+  dom.overlaySummary = el('[data-overlay-summary]');
   dom.overlayScore = el('[data-overlay-score]');
-  dom.overlayFinal = el('[data-overlay-final]');
 }
 
 export function showScreen(name) {
@@ -53,7 +61,11 @@ export function showScreen(name) {
 
 export function showOverlay(name) {
   dom.overlayLevel.hidden = name !== 'level';
-  dom.overlayGameOver.hidden = name !== 'gameover';
+  if (name === 'level') {
+    // Focus moves into the dialog so a stray Enter cannot re-fire the Serve
+    // button that is still focused behind the scrim.
+    dom.overlayLevel.querySelector('.btn--primary')?.focus();
+  }
 }
 
 let toastTimer = null;
@@ -96,15 +108,22 @@ export function bump(node) {
 
 export function shake(node) {
   if (!node) return;
-  const cell = node.closest('.hud__cell') ?? node;
-  cell.classList.remove('is-shaking');
-  void cell.offsetWidth;
-  cell.classList.add('is-shaking');
+  node.classList.remove('is-shaking');
+  void node.offsetWidth;
+  node.classList.add('is-shaking');
 }
 
 /* ------------------------------------------------------------------ *
  * Menu and level select
  * ------------------------------------------------------------------ */
+
+export function renderModeCards() {
+  for (const node of dom.modeOps) {
+    node.textContent = operatorsForLevel(node.dataset.modeOps, 5)
+      .map((op) => op.symbol)
+      .join(' ');
+  }
+}
 
 export function renderLevelGrid(mode, unlocked) {
   dom.modeTitle.textContent = t(`mode.${mode}`);
@@ -126,7 +145,9 @@ export function renderLevelGrid(mode, unlocked) {
 
     const meta = document.createElement('span');
     meta.className = 'level-card__meta';
-    meta.textContent = locked ? t('levels.lockedHint') : t('levels.orders', { count: ordersForLevel(level) });
+    meta.textContent = locked
+      ? t('levels.lockedHint')
+      : t('levels.customers', { count: customersForLevel(level) });
 
     button.append(num, meta);
     item.append(button);
@@ -138,8 +159,12 @@ export function applyStaticStrings() {
   for (const node of document.querySelectorAll('[data-i18n]')) {
     node.textContent = t(node.dataset.i18n);
   }
+  for (const node of document.querySelectorAll('[data-i18n-aria]')) {
+    node.setAttribute('aria-label', t(node.dataset.i18nAria));
+  }
   dom.langCurrent.textContent = document.documentElement.lang.toUpperCase();
   if (dom.menuHat) dom.menuHat.src = ASSETS.chefHat;
+  renderModeCards();
 }
 
 /* ------------------------------------------------------------------ *
@@ -147,37 +172,167 @@ export function applyStaticStrings() {
  * ------------------------------------------------------------------ */
 
 export function renderHud(state) {
-  dom.hudLevel.textContent = `${state.orderIndex + 1}/${state.totalOrders}`;
+  const served = S.ordersServed(state);
+  const total = state.rosterSize;
+  dom.hudLevel.textContent = String(state.level);
+  dom.hudServed.textContent = `${served}/${total}`;
   dom.hudScore.textContent = String(state.score);
 
-  const seconds = Math.ceil(state.timeLeft);
-  dom.hudTimer.textContent = String(seconds);
-  const ratio = state.timeTotal > 0 ? state.timeLeft / state.timeTotal : 0;
+  const done = served + S.ordersLost(state);
+  const ratio = total > 0 ? done / total : 0;
   dom.hudProgress.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
-  const warning = ratio <= 0.34;
-  dom.hudProgress.classList.toggle('is-warning', warning);
-  dom.hudTimer.classList.toggle('is-warning', warning);
-
-  const lives = [];
-  for (let i = 0; i < 3; i += 1) {
-    const span = document.createElement('span');
-    span.className = i < state.lives ? 'life' : 'life is-lost';
-    span.textContent = i < state.lives ? '\u{1F49A}' : '\u{1F5D1}';
-    lives.push(span);
-  }
-  dom.hudLives.replaceChildren(...lives);
 }
 
 /* ------------------------------------------------------------------ *
- * Order
+ * Customer queue
  * ------------------------------------------------------------------ */
 
-export function renderOrder(state) {
-  dom.orderTarget.textContent = toDisplayString(state.puzzle.target);
-  dom.orderCustomer.src = customerFor(state.customerIndex);
-  dom.orderCustomer.classList.remove('anim-pop');
-  void dom.orderCustomer.offsetWidth;
-  dom.orderCustomer.classList.add('anim-pop');
+export function renderChips(state) {
+  const nodes = [];
+  const standEmpty = state.expression.length === 0;
+
+  for (const order of state.orders) {
+    if (order.status === S.ORDER_STATUS.SERVED || order.status === S.ORDER_STATUS.WALKED) continue;
+    const target = toDisplayString(order.puzzle.target);
+
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.dataset.orderId = String(order.id);
+    chip.dataset.dropZone = 'serve';
+    chip.classList.add(`is-${order.status}`);
+
+    const portrait = document.createElement('img');
+    portrait.className = 'chip__portrait';
+    portrait.src = customerFor(order.customerIndex);
+    portrait.alt = '';
+    portrait.width = 44;
+    portrait.height = 52;
+
+    const targetEl = document.createElement('span');
+    targetEl.className = 'chip__target';
+    targetEl.textContent = target;
+
+    // The patience bar is the fastest read on the screen: its width is the
+    // remaining share, so a shrinking bar is the warning.
+    const meter = document.createElement('span');
+    meter.className = 'chip__meter';
+    meter.setAttribute('aria-hidden', 'true');
+    const fill = document.createElement('span');
+    fill.className = 'chip__meter-fill';
+    const left = Math.max(0, order.timeLeft / order.timeTotal);
+    fill.style.width = `${Math.max(0, Math.min(1, left)) * 100}%`;
+    meter.append(fill);
+
+    const seconds = document.createElement('span');
+    seconds.className = 'chip__seconds';
+    seconds.textContent = String(Math.ceil(Math.max(0, order.timeLeft)));
+
+    chip.append(portrait, targetEl, meter, seconds);
+
+    // Only the stand's own customer can be cooked, so the button is the only
+    // way to commit. It disappears once the stand is loaded, which is what
+    // makes the two-step flow obvious instead of a mode the player has to learn.
+    if (order.status === S.ORDER_STATUS.COOKING) {
+      chip.classList.add('is-locked');
+    } else if (standEmpty) {
+      const cook = document.createElement('button');
+      cook.type = 'button';
+      cook.className = 'chip__cook';
+      cook.dataset.action = 'cook-for';
+      cook.dataset.orderId = String(order.id);
+      cook.textContent = t('customer.cookFor', { target });
+      cook.setAttribute('aria-label', t('customer.cookFor', { target }));
+      chip.append(cook);
+    }
+
+    chip.setAttribute('data-status', order.status);
+    nodes.push(chip);
+  }
+
+  dom.queueStrip.replaceChildren(...nodes);
+  renderQueueNext(state);
+}
+
+function renderQueueNext(state) {
+  const next = S.secondsToNextCustomer(state);
+  const lastOne = state.spawnedCount >= state.rosterSize - 1;
+  let text;
+  if (state.orders.length >= MAX_ON_SCREEN) text = t('queue.full');
+  else if (next === null) text = lastOne ? t('queue.nextLast') : t('queue.nextSoon');
+  else text = t('queue.nextIn', { seconds: Math.ceil(next) });
+  dom.queueNext.textContent = text;
+}
+
+/* ------------------------------------------------------------------ *
+ * Stand
+ * ------------------------------------------------------------------ */
+
+export function renderStand(state) {
+  const order = S.cookingOrder(state);
+  const dish = S.hasDish(state);
+  const total = S.runningTotal(state);
+
+  if (!order) {
+    dom.standHead.hidden = true;
+    dom.workspaceEmpty.hidden = false;
+    dom.workspaceEmpty.textContent = t('stand.pickCustomer');
+    dom.plateValue.textContent = '';
+    dom.plate.classList.remove('has-dish');
+    dom.workspace.classList.remove('has-content');
+    dom.workspaceLine.replaceChildren();
+    dom.serveBtn.disabled = true;
+    return;
+  }
+
+  const target = toDisplayString(order.puzzle.target);
+  dom.standHead.hidden = false;
+  dom.standPortrait.src = customerFor(order.customerIndex);
+  dom.standFor.textContent = t('stand.building', { target });
+  dom.workspaceEmpty.hidden = state.expression.length > 0;
+
+  // The final value is the safeguard against a walkout the player could not see
+  // coming (AGENTS.md rule 11), so it is never hidden behind a hover state.
+  dom.plateValue.textContent = total === null ? '' : `= ${toDisplayString(total)}`;
+  dom.plate.classList.toggle('has-dish', dish);
+  dom.plate.classList.toggle('is-ready', dish);
+  dom.serveBtn.disabled = !dish;
+
+  renderWorkspace(state);
+}
+
+function slotClass(item) {
+  if (item.kind === 'operator') return 'slot slot--operator';
+  if (item.kind === 'unary') return 'slot slot--unary';
+  return 'slot';
+}
+
+function renderWorkspace(state) {
+  const nodes = [];
+
+  state.expression.forEach((item, index) => {
+    const slot = document.createElement('div');
+    slot.className = slotClass(item);
+    if (item.kind === 'number') {
+      slot.textContent = toDisplayString(item.value);
+    } else if (item.kind === 'operator') {
+      slot.textContent = OPERATORS[item.op]?.symbol ?? '?';
+    } else {
+      slot.textContent = item.op === 'sqrt' ? '\u221a' : (item.exponent === 3 ? '\u00b3' : '\u00b2');
+    }
+    slot.dataset.slotIndex = String(index);
+    slot.dataset.draggable = 'true';
+    nodes.push(slot);
+  });
+
+  if (nodes.length === 0) {
+    const dropzone = document.createElement('div');
+    dropzone.className = 'slot slot--dropzone';
+    dropzone.dataset.dropSlot = 'append';
+    nodes.push(dropzone);
+  }
+
+  dom.workspaceLine.replaceChildren(...nodes);
+  dom.workspace.classList.toggle('has-content', state.expression.length > 0);
 }
 
 /* ------------------------------------------------------------------ *
@@ -191,17 +346,21 @@ function tileClass(kind) {
 }
 
 export function renderRack(state) {
+  const ingredients = S.standIngredients(state);
   const expected = S.expectedKind(state);
+  const hasOrder = ingredients.length > 0;
 
   const used = new Map();
-  for (const key of state.expression.filter((i) => i.kind === 'number').map((i) => `${i.value.n}/${i.value.d}`)) {
+  for (const item of state.expression) {
+    if (item.kind !== 'number') continue;
+    const key = `${item.value.n}/${item.value.d}`;
     used.set(key, (used.get(key) ?? 0) + 1);
   }
 
   const numberNodes = [];
-  state.puzzle.ingredients.forEach((value, index) => {
+  ingredients.forEach((value, index) => {
     const key = `${value.n}/${value.d}`;
-    const remaining = (state.puzzle.ingredients.filter((v) => `${v.n}/${v.d}` === key).length) - (used.get(key) ?? 0);
+    const remaining = ingredients.filter((v) => `${v.n}/${v.d}` === key).length - (used.get(key) ?? 0);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = tileClass('number');
@@ -209,98 +368,28 @@ export function renderRack(state) {
     button.dataset.tileKind = 'number';
     button.dataset.tileIndex = String(index);
     button.dataset.tileKey = key;
-    button.dataset.remaining = String(remaining);
     button.dataset.draggable = 'true';
     if (remaining <= 0) button.classList.add('is-used');
-    if (expected !== 'number' || remaining <= 0) button.disabled = true;
-    button.setAttribute('aria-label', `${toDisplayString(value)}`);
+    button.disabled = !hasOrder || expected !== 'number' || remaining <= 0;
     numberNodes.push(button);
   });
   dom.rackNumbers.replaceChildren(...numberNodes);
 
   const opNodes = operatorsForMode(state.band).map((op) => {
+    const kind = op.arity === 'unary' ? 'unary' : 'operator';
     const button = document.createElement('button');
     button.type = 'button';
-    // `arity` is 'binary' in the core vocabulary but the tile kind is 'operator'.
-    button.className = tileClass(op.arity === 'unary' ? 'unary' : 'operator');
+    button.className = tileClass(kind);
     button.textContent = op.symbol;
-    button.dataset.tileKind = op.arity === 'unary' ? 'unary' : 'operator';
+    button.dataset.tileKind = kind;
     button.dataset.tileKey = op.key;
     button.dataset.tileExponent = op.exponent === undefined ? '' : String(op.exponent);
     button.dataset.draggable = 'true';
-    button.disabled = !S.canAccept(state, op.arity === 'unary' ? 'unary' : 'operator');
-    button.setAttribute('aria-label', op.label);
+    button.disabled = !hasOrder || !S.canAccept(state, kind);
+    button.setAttribute('aria-label', t(op.labelKey));
     return button;
   });
   dom.rackOperators.replaceChildren(...opNodes);
-}
-
-/* ------------------------------------------------------------------ *
- * Workspace
- * ------------------------------------------------------------------ */
-
-function slotClass(item, isResult) {
-  if (isResult) return 'slot slot--result';
-  if (item.kind === 'operator') return 'slot slot--operator';
-  if (item.kind === 'unary') return 'slot slot--unary';
-  return 'slot';
-}
-
-export function renderWorkspace(state) {
-  const nodes = [];
-
-  state.expression.forEach((item, index) => {
-    if (item.kind === 'number') {
-      const slot = document.createElement('div');
-      slot.className = 'slot';
-      slot.textContent = toDisplayString(item.value);
-      slot.dataset.slotIndex = String(index);
-      slot.dataset.draggable = 'true';
-      nodes.push(slot);
-      return;
-    }
-    if (item.kind === 'operator') {
-      const slot = document.createElement('div');
-      slot.className = 'slot slot--operator';
-      slot.textContent = OPERATORS[item.op]?.symbol ?? '?';
-      slot.dataset.slotIndex = String(index);
-      slot.dataset.draggable = 'true';
-      nodes.push(slot);
-      return;
-    }
-    const slot = document.createElement('div');
-    slot.className = 'slot slot--unary';
-    slot.textContent = item.op === 'sqrt' ? '\u221a' : (item.exponent === 3 ? '\u00b3' : '\u00b2');
-    slot.dataset.slotIndex = String(index);
-    slot.dataset.draggable = 'true';
-    nodes.push(slot);
-  });
-
-  const total = S.runningTotal(state);
-  if (total !== null) {
-    const chip = document.createElement('div');
-    const low = total.n !== 0 && total.n < 0;
-    chip.className = low ? 'slot slot--result is-low' : 'slot slot--result';
-    chip.textContent = `= ${toDisplayString(total)}`;
-    chip.dataset.result = 'true';
-    nodes.push(chip);
-  } else {
-    const dropzone = document.createElement('div');
-    dropzone.className = 'slot slot--dropzone';
-    dropzone.dataset.dropSlot = 'append';
-    nodes.push(dropzone);
-  }
-
-  dom.workspaceLine.replaceChildren(...nodes);
-  dom.workspace.classList.toggle('has-content', state.expression.length > 0);
-  dom.running.hidden = total === null;
-  if (total !== null) dom.runningValue.textContent = toDisplayString(total);
-  dom.serveBtn.disabled = !S.isServable(state);
-}
-
-export function highlight(selector, on) {
-  const node = el(selector);
-  if (node) node.classList.toggle('is-over', on);
 }
 
 export function steamBurst() {
@@ -317,12 +406,11 @@ export function steamBurst() {
 
 export function render(state) {
   renderHud(state);
-  renderOrder(state);
+  renderChips(state);
+  renderStand(state);
   renderRack(state);
-  renderWorkspace(state);
 }
 
-/** Cached node references, so the controller can reach specific elements. */
 export { dom };
 
 export const VIEW = {
@@ -331,15 +419,16 @@ export const VIEW = {
   showOverlay,
   render,
   renderHud,
+  renderChips,
+  renderStand,
   renderRack,
-  renderWorkspace,
   renderLevelGrid,
+  renderModeCards,
   applyStaticStrings,
   feedback,
   toast,
   bump,
   shake,
-  highlight,
   steamBurst,
   dom,
 };

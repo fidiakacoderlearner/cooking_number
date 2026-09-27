@@ -1,27 +1,28 @@
 /**
  * Tile interaction: drag-and-drop via interact.js, plus tap-to-place as the
- * mobile fallback agreed in PRD 5.4 discussion.
+ * mobile fallback agreed in PRD 5.4.
  *
  * A tap always works. Drag is the richer path, but on a small phone a dragged
  * tile can be dropped in the wrong place or fight the page scroll, so every
- * action here is reachable with two taps.
+ * action here is reachable with taps alone.
+ *
+ * The stand is the only place a dish is built, and a dish only leaves it by
+ * being dragged onto a customer chip. Nothing here can destroy work on its own
+ * (AGENTS.md rule 11).
  */
 
-import { t } from './i18n.js';
-
-let selectedTile = null;
 let dropCallback = null;
-let toastCallback = null;
-let zoneEnterCallback = null;
-let zoneLeaveCallback = null;
+let dragReady = false;
 
-const DRAG_THRESHOLD = 6;
+/** Where a drag may be dropped. Cached, because it is read on every pointer move. */
+let zones = [];
 
 export function configure(options) {
   dropCallback = options.onDrop;
-  toastCallback = options.onToast ?? (() => {});
-  zoneEnterCallback = options.onZoneEnter ?? (() => {});
-  zoneLeaveCallback = options.onZoneLeave ?? (() => {});
+}
+
+export function isDragReady() {
+  return dragReady;
 }
 
 /* ------------------------------------------------------------------ *
@@ -52,46 +53,39 @@ function tileFromNode(node) {
   return null;
 }
 
-const tileFromEvent = (event) => tileFromNode(event.currentTarget);
-
-function clearSelection() {
-  if (selectedTile) {
-    selectedTile.node.classList.remove('is-selected');
-    selectedTile = null;
-  }
-}
-
-export function hasSelection() {
-  return selectedTile !== null;
-}
-
-export function cancelSelection() {
-  clearSelection();
-}
-
 /* ------------------------------------------------------------------ *
  * Drop zones
  * ------------------------------------------------------------------ */
 
-const ZONES = ['[data-workspace]', '[data-drop-zone="serve"]'];
+const ZONE_SELECTORS = ['[data-workspace]', '[data-drop-zone="serve"]'];
 
 function zoneFor(target) {
-  return target instanceof Element ? target.closest(ZONES.join(',')) : null;
+  if (!(target instanceof Element)) return null;
+  return target.closest(ZONE_SELECTORS.join(','));
+}
+
+/**
+ * Re-read the zone list. The serve targets are customer chips, which are
+ * re-rendered on every state change, so the list cannot be computed once.
+ */
+function refreshZones() {
+  zones = [];
+  for (const selector of ZONE_SELECTORS) {
+    for (const node of document.querySelectorAll(selector)) {
+      zones.push({ node, selector });
+    }
+  }
 }
 
 function highlightZone(target, on) {
-  for (const selector of ZONES) {
-    const node = document.querySelector(selector);
-    if (!node) continue;
-    const isTarget = target instanceof Element && target.closest(selector);
-    node.classList.toggle('is-over', on && Boolean(isTarget));
+  for (const zone of zones) {
+    const isTarget = on && target instanceof Element && Boolean(target.closest(zone.selector));
+    zone.node.classList.toggle('is-over', isTarget);
   }
 }
 
 function clearZoneHighlights() {
-  for (const selector of ZONES) {
-    document.querySelector(selector)?.classList.remove('is-over');
-  }
+  for (const zone of zones) zone.node.classList.remove('is-over');
 }
 
 /* ------------------------------------------------------------------ *
@@ -101,61 +95,24 @@ function clearZoneHighlights() {
 function commit(tile, zone) {
   if (!tile || !zone) return;
   const kind = zone.dataset.dropZone === 'serve' ? 'serve' : 'workspace';
-  dropCallback?.(tile, kind, zone);
-  clearSelection();
+  const orderId = zone.dataset.orderId ? Number(zone.dataset.orderId) : null;
+  dropCallback?.(tile, kind, orderId);
   clearZoneHighlights();
 }
 
+/* ------------------------------------------------------------------ *
+ * Taps
+ * ------------------------------------------------------------------ */
+
 /**
- * Tap on a rack tile.
- *
- * Every tap appends straight into the workspace, so tapping `4`, `x`, `7`
- * builds `4 x 7` in three taps and Serve lights up immediately. Nothing is held
- * in a "selected" state between taps, which is what previously left the last
- * tile stranded outside the expression.
- *
- * Invalid tiles are disabled in the rack, so a tap that cannot be placed simply
- * does nothing. The short flash is the only confirmation needed, since the
- * feedback line already says what to pick next.
+ * Tap a rack tile. Every tap appends straight to the stand, so `4`, `x`, `7` is
+ * three taps. Invalid tiles are disabled in the rack, so a tap that cannot be
+ * placed simply does nothing.
  */
 function handleRackTap(node) {
   const tile = tileFromNode(node);
   if (!tile || node.disabled) return;
-
-  if (selectedTile) {
-    const previous = selectedTile;
-    clearSelection();
-    if (previous.node !== node) dropCallback?.(previous, 'workspace');
-  }
-
-  dropCallback?.(tile, 'workspace');
-
-  node.classList.add('is-selected');
-  setTimeout(() => node.classList.remove('is-selected'), 200);
-}
-
-/** Tap on the workspace or the plate. */
-function handleZoneTap(node) {
-  if (node.dataset.dropZone === 'serve') {
-    dropCallback?.({ kind: 'serve' }, 'serve');
-    return;
-  }
-  if (selectedTile) {
-    const tile = selectedTile;
-    clearSelection();
-    dropCallback?.(tile, 'workspace');
-  }
-}
-
-function handleZoneEnter(event) {
-  if (!selectedTile) return;
-  highlightZone(event.currentTarget, true);
-  zoneEnterCallback?.(event.currentTarget);
-}
-
-function handleZoneLeave(event) {
-  clearZoneHighlights();
-  zoneLeaveCallback?.(event.currentTarget);
+  dropCallback?.(tile, 'workspace', null);
 }
 
 /* ------------------------------------------------------------------ *
@@ -165,7 +122,7 @@ function handleZoneLeave(event) {
 function installDrag() {
   if (typeof window.interact === 'undefined') return false;
 
-  window.interact('.tile, .slot').draggable({
+  window.interact('.tile, .slot, [data-drop-zone="serve"]').draggable({
     inertia: false,
     autoScroll: true,
     listeners: {
@@ -174,7 +131,7 @@ function installDrag() {
         if (!tile) return;
         event.interactable.tile = tile;
         tile.node.classList.add('is-dragging');
-        clearSelection();
+        refreshZones();
       },
       move(event) {
         const tile = event.interactable.tile;
@@ -185,13 +142,8 @@ function installDrag() {
         tile.node.style.zIndex = '30';
         tile.node.style.pointerEvents = 'none';
 
-        const under = document.elementFromPoint(event.client.x ?? 0, event.client.y ?? 0);
-        const zone = zoneFor(under);
-        if (zone) {
-          highlightZone(zone, true);
-        } else {
-          clearZoneHighlights();
-        }
+        const zone = zoneFor(document.elementFromPoint(event.client.x ?? 0, event.client.y ?? 0));
+        highlightZone(zone, true);
       },
       end(event) {
         const tile = event.interactable.tile;
@@ -201,8 +153,7 @@ function installDrag() {
         tile.node.style.zIndex = '';
         tile.node.style.pointerEvents = '';
 
-        const under = document.elementFromPoint(event.client.x ?? 0, event.client.y ?? 0);
-        const zone = zoneFor(under);
+        const zone = zoneFor(document.elementFromPoint(event.client.x ?? 0, event.client.y ?? 0));
         if (zone) {
           commit(tile, zone);
         } else {
@@ -215,47 +166,31 @@ function installDrag() {
   return true;
 }
 
+const tileFromEvent = (event) => tileFromNode(event.currentTarget);
+
 /* ------------------------------------------------------------------ *
  * Wiring
  * ------------------------------------------------------------------ */
 
 export function init(root = document) {
-  installDrag();
+  dragReady = installDrag();
+  refreshZones();
 
-  // Tiles and zones are delegated, so re-rendering the rack never needs rebinding.
+  // Delegated, so re-rendering the rack never needs rebinding.
   root.addEventListener('click', (event) => {
     const tileNode = event.target.closest?.('.tile');
     if (tileNode) {
       handleRackTap(tileNode);
       return;
     }
-    const zoneNode = event.target.closest?.('.slot--dropzone, .counter__plate');
-    if (zoneNode) handleZoneTap(zoneNode);
-  });
-
-  for (const selector of ZONES) {
-    for (const node of document.querySelectorAll(selector)) {
-      node.addEventListener('dragenter', handleZoneEnter);
-      node.addEventListener('dragleave', handleZoneLeave);
-      node.addEventListener('mouseenter', handleZoneEnter);
-      node.addEventListener('mouseleave', handleZoneLeave);
-    }
-  }
-
-  // Escape cancels a pending tap selection, which helps keyboard and desktop use.
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      clearSelection();
-      clearZoneHighlights();
+    // Tapping the plate is the mobile path for serving. Scoped to the plate
+    // itself: customer chips are serve drop zones too, and tapping one must
+    // never be read as "serve what is on the stand".
+    const plate = event.target.closest?.('.counter__plate');
+    if (plate) {
+      dropCallback?.({ kind: 'serve' }, 'serve', null);
     }
   });
 
-  return { dragReady: typeof window.interact !== 'undefined', threshold: DRAG_THRESHOLD };
+  return { dragReady };
 }
-
-export const DRAG = {
-  init,
-  configure,
-  cancelSelection,
-  hasSelection,
-};

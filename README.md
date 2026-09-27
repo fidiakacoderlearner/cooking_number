@@ -1,12 +1,13 @@
-# Number Kitchen
+# Cooking Number
 
 Game edukasi matematika untuk siswa SMP, bertema restoran: pelanggan memesan
 sebuah angka, pemain menyusun angka-angka yang tersedia dengan operator
 matematika sampai angkanya cocok, lalu saji.
 
-Working title, lihat [PRD.md](PRD.md).
+Rujukan kebutuhan lengkap ada di [PRD.md](PRD.md).
 
-> Status: **Fase 2 selesai** — logika inti, generator soal, dan UI playable.
+> Status: **Fase 2.5 sedang dikerjakan** — logika inti dan generator soal selesai;
+> UI sedang diubah ke model pelanggan berdatangan berkala.
 > Lihat [Roadmap](#roadmap) untuk apa yang belum selesai.
 
 ## Cara menjalankan
@@ -14,7 +15,7 @@ Working title, lihat [PRD.md](PRD.md).
 Butuh Node.js 20+ (hanya untuk test runner, bukan untuk build).
 
 ```bash
-npm test           # 72 unit test
+npm test           # unit test core
 npm run smoke      # jalankan game sungguhan di Chrome dan verifikasi alur-ui
 npm run inspect    # cetak contoh soal per mode untuk diperiksa manual
 npm run assets     # buat ulang placeholder WebP (butuh Python + Pillow)
@@ -71,12 +72,19 @@ test/                   unit test (node:test, tanpa dependency)
 | Jumlah solusi | Single hiding, satu jawaban rahasia ditambah pengalihan |
 | Akar dan pangkat | Bilangan bulat, akar hanya kuadrat sempurna |
 | Target | Bulat dan positif, karena pelanggan memesan "8 porsi" |
-| Timer | Easy 30s, Medium 20s, Hard 15s |
-| Skor | Base 10/15/20, plus bonus kecepatan maksimum 50% dari base |
-| Syarat gagal | Waktu habis −10, jawaban salah −5, skor tidak pernah di bawah nol |
+| Pelanggan | Datang **berkala satu per satu**, menumpuk kalau pemain lambat |
+| Kesabaran | **Per pelanggan**, semua jalan bersamaan. Easy 50s, Medium 44s, Hard 38s |
+| Spawner | Interval dasar 15/12/10 detik, dengan jitter dan decay. Layar penuh = spawner berhenti |
+| Batas layar | Maksimal 4 pelanggan menunggu sekaligus |
+| Syarat gagal | **Walkout tanpa reward**. Tidak ada nyawa, tidak ada pelanggan pengganti |
+| Level gagal | Tidak ada. Level selesai saat roster habis, yang beda cuma skor |
+| Skor | Base per pelanggan per mode, plus bonus kecepatan dari sisa kesabaran. Tidak pernah berkurang |
+| Dapur | Satu stand, satu hidangan. Bahan stand milik pelanggan yang sedang dimasak |
+| Alur | Pilih pelanggan → Masak untuk dia → masak → jadi → sajikan |
+| Operator | Progresif **per level**, Easy mulai dari `+ -` saja |
 | Input | Drag-and-drop plus tap-to-place, karena drag merepotkan di layar kecil |
 | Bahasa | English sebagai default, toggle ID/EN, pilihan tersimpan di `localStorage` |
-| Struktur level | 5 level per mode, pesanan 2/3/4/4/5 |
+| Struktur level | 5 level per mode, roster pelanggan 4/5/6/7/8 |
 
 ## Bagaimana generator soal bekerja
 
@@ -127,21 +135,26 @@ Hal-hal yang tidak terlihat dari kode, tapi sangat terasa ketika bermain:
 
 ## Verifikasi
 
-- `npm test` — 72 test, termasuk stress test 10.000 soal per mode.
-- `npm run smoke` — menjalankan game di Chrome sungguhan, menyelesaikan pesanan
-  hanya dari yang terlihat di layar, lalu memeriksa skor, transisi order, level
-  selesai, dan toggle bahasa. Kegagalan apa pun pada alur-ui tertangkap di sini.
+- `npm test` — test core, termasuk stress test 10.000 soal per mode.
+- `npm run smoke` — menjalankan game di Chrome sungguhan, menyajikan beberapa
+  pelanggan sekaligus hanya dari yang terlihat di layar, lalu memeriksa skor,
+  walkout, akhir level, dan toggle bahasa. Kegagalan apa pun pada alur-ui
+  tertangkap di sini.
 - `npm run inspect` — mencetak contoh soal untuk diperiksa ulang secara
   pedagogis dengan mata.
+- `npm run check:imports` — mendeteksi import yang tidak terpakai di `src/core`
+  dan `src/ui`.
 
 ## Roadmap
 
 - [x] **Fase 1** — logika inti, generator, unit test
-- [x] **Fase 2** — UI mobile-first, drag dan tap, game loop, tema toon
-- [~] **Fase 3** — polish styling, uji sentuh di HP asli
-- [ ] **Fase 4** — playtesting, kalibrasi timer dan skor, materi submission
+- [x] **Fase 2** — UI mobile-first dengan satu pelanggan satu pesanan
+- [~] **Fase 2.5** — redesign ke pelanggan berdatangan berkala
+- [ ] **Fase 3** — polish, kalibrasi spawner dan kesabaran di HP asli
+- [ ] **Fase 4** — playtesting akhir, materi submission
 
-Masih terbuka: rubrik lomba, aset visual final dari tim, konfirmasi nama game.
+Masih terbuka: rubrik lomba, aset visual final dari tim, hasil kalibrasi
+layar di perangkat asli.
 
 ## Catatan teknis
 
@@ -153,4 +166,7 @@ Masih terbuka: rubrik lomba, aset visual final dari tim, konfirmasi nama game.
 - `package.json` memakai `"type": "module"`. Browser mengabaikannya, jadi
   hosting statis tetap jalan tanpa build step.
 - `secretRecipe` hanya untuk pembuktian di test. **Jangan** kirim ke pemain.
+- Angka spawner dan kesabaran di `src/core/difficulty.js` adalah titik awal,
+  bukan angka final. Semuanya bisa diubah dari satu file tanpa menyentuh
+  logika permainan.
 - `.opencode/` diabaikan git karena berisi catatan internal.

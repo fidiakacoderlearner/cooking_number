@@ -6,7 +6,14 @@
  *   node scripts/inspect-puzzles.js --mode hard --count 15
  */
 
-import { MODE_LIST, LEVELS_PER_MODE, getBand, ordersForLevel } from '../src/core/difficulty.js';
+import {
+  MODE_LIST,
+  LEVELS_PER_MODE,
+  getBand,
+  customersForLevel,
+  baseArrivalSeconds,
+  patienceSeconds,
+} from '../src/core/difficulty.js';
 import { evaluate, traceValues } from '../src/core/evaluate.js';
 import { generatePuzzle, makeRng } from '../src/core/generator.js';
 import { toFractionString, toDisplayString } from '../src/core/rational.js';
@@ -31,8 +38,10 @@ for (const mode of modes) {
   for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
     const band = getBand(mode, level);
     console.log(
-      `\nLevel ${level}  (${ordersForLevel(level)} orders, tiles ${band.ingredientMin}-${band.ingredientMax}, ` +
-        `ingredients +/-${band.maxAbsIngredient}, unary: [${band.unaryOps.join(', ') || '-'}])`,
+      `\nLevel ${level}  (${customersForLevel(level)} customers, tiles ${band.ingredientMin}-${band.ingredientMax}, ` +
+        `ingredients +/-${band.maxAbsIngredient}, arrives every ~${baseArrivalSeconds(mode, level)}s, ` +
+        `patience ${patienceSeconds(mode, level)}s, ops: [${band.binaryOps.join(', ')}] ` +
+        `unary: [${band.unaryOps.join(', ') || '-'}])`,
     );
     for (let i = 0; i < count; i += 1) {
       const puzzle = generatePuzzle(mode, level, { rng });

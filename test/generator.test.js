@@ -2,12 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as R from '../src/core/rational.js';
-import { getBand, ordersForLevel, MODE_LIST, LEVELS_PER_MODE, ORDERS_PER_LEVEL, isValidLevel, isValidMode } from '../src/core/difficulty.js';
+import { getBand, customersForLevel, MODE_LIST, LEVELS_PER_MODE, isValidLevel, isValidMode } from '../src/core/difficulty.js';
 import { evaluate, traceValues, unaryOperatorKeys, ingredientCount } from '../src/core/evaluate.js';
 import { consumesOperand, opArity } from '../src/core/operators.js';
 import {
   generatePuzzle,
-  generateLevel,
   collectIngredients,
   displaySolution,
   assertPuzzleSolvable,
@@ -26,12 +25,11 @@ function seeded(seed) {
  * Difficulty config
  * ------------------------------------------------------------------ */
 
-test('orders per level follow the agreed 2 / 3 / 4 / 4 / 5 curve', () => {
-  assert.deepEqual([...ORDERS_PER_LEVEL], [2, 3, 4, 4, 5]);
-  assert.equal(ordersForLevel(1), 2);
-  assert.equal(ordersForLevel(5), 5);
-  assert.throws(() => ordersForLevel(0));
-  assert.throws(() => ordersForLevel(6));
+test('the roster grows with the level', () => {
+  assert.equal(customersForLevel(1), 4);
+  assert.equal(customersForLevel(LEVELS_PER_MODE), 8);
+  assert.throws(() => customersForLevel(0));
+  assert.throws(() => customersForLevel(LEVELS_PER_MODE + 1));
 });
 
 test('mode and level validation rejects junk', () => {
@@ -42,13 +40,21 @@ test('mode and level validation rejects junk', () => {
   assert.throws(() => getBand('nope', 1), /unknown mode/);
 });
 
-test('bands widen with level and never add operators', () => {
+test('bands widen with level and only ever gain operators', () => {
   for (const mode of MODE_LIST) {
     const first = getBand(mode, 1);
     const last = getBand(mode, LEVELS_PER_MODE);
     assert.ok(last.maxAbsIngredient > first.maxAbsIngredient, `${mode} should widen`);
-    assert.deepEqual([...last.binaryOps], [...first.binaryOps]);
-    assert.deepEqual([...last.unaryOps], [...first.unaryOps]);
+
+    // Operators are a progressive ladder now (PRD 5.1), so the last level offers
+    // a superset of the first. What must never happen is an operator disappearing.
+    for (const op of first.binaryOps) {
+      assert.ok(last.binaryOps.includes(op), `${mode} lost ${op} on the way to level 5`);
+    }
+    for (const op of first.unaryOps) {
+      assert.ok(last.unaryOps.includes(op), `${mode} lost ${op} on the way to level 5`);
+    }
+    assert.ok(last.binaryOps.length >= first.binaryOps.length);
   }
 });
 
@@ -56,17 +62,22 @@ test('Easy is integers with negatives, Hard demands unary', () => {
   const easy = getBand('easy', 1);
   assert.ok(easy.allowNegatives);
   assert.ok(!easy.allowFractions);
-  assert.deepEqual([...easy.unaryOps], []);
+  assert.deepEqual([...easy.unaryOps], [], 'Easy never unlocks a unary step');
   assert.equal(easy.minUnarySteps, 0);
 
   const medium = getBand('medium', 1);
   assert.ok(medium.allowFractions);
   assert.ok(!medium.allowNegatives);
 
-  const hard = getBand('hard', 1);
-  assert.ok(hard.minUnarySteps >= 1, 'Hard must genuinely practise roots/powers');
-  assert.ok(hard.unaryOps.includes('sqrt'));
-  assert.ok(hard.unaryOps.includes('pow'));
+  // Hard introduces powers at level 1 and roots from level 3.
+  const hardStart = getBand('hard', 1);
+  assert.ok(hardStart.minUnarySteps >= 1, 'Hard must genuinely practise roots/powers');
+  assert.ok(hardStart.unaryOps.includes('pow'));
+  assert.ok(!hardStart.unaryOps.includes('sqrt'), 'roots are unlocked later, not at once');
+
+  const hardLate = getBand('hard', 3);
+  assert.ok(hardLate.unaryOps.includes('sqrt'), 'roots must be available by level 3');
+  assert.ok(hardLate.unaryOps.includes('pow'));
 });
 
 /* ------------------------------------------------------------------ *
@@ -247,6 +258,74 @@ test('the target itself is always a presentable number', () => {
  * Per-mode mathematical rules
  * ------------------------------------------------------------------ */
 
+/**
+ * The operator ladder is a hard gate, not a nice-to-have.
+ *
+ * Restricting the operators also restricts the arithmetic the generator may use,
+ * so a rung that is too tight would make whole tiers of the game unsolvable.
+ * Every mode x level rung gets a full stress run, and every puzzle is proved
+ * solvable with the core evaluator before the run is allowed to pass.
+ */
+test('every rung of the operator ladder still produces solvable puzzles', () => {
+  let total = 0;
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const band = getBand(mode, level);
+      const rng = seeded(7000 + level * 7 + mode.length);
+      for (let i = 0; i < STRESS_RUNS; i += 1) {
+        const puzzle = generatePuzzle(mode, level, { rng });
+        assertPuzzleSolvable(puzzle, band);
+
+        // The secret recipe may only use operators the player was actually
+        // offered, and the offered tiles must cover it.
+        for (const step of puzzle.secretRecipe.steps) {
+          const allowed = step.operand === undefined ? band.unaryOps : band.binaryOps;
+          assert.ok(
+            allowed.includes(step.op),
+            `${mode} level ${level} used ${step.op}, which that rung does not offer (${allowed.join(',')})`,
+          );
+        }
+        for (const value of collectIngredients(puzzle.secretRecipe)) {
+          assert.ok(
+            puzzle.ingredients.some((v) => R.toKey(v) === R.toKey(value)),
+            `${mode} level ${level} produced a dish needing an ingredient it never dealt`,
+          );
+        }
+        total += 1;
+      }
+    }
+  }
+  assert.equal(total, STRESS_RUNS * MODE_LIST.length * LEVELS_PER_MODE);
+});
+
+test('a rung that locks a unary step actually uses one', () => {
+  const rng = seeded(90210);
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+      const band = getBand(mode, level);
+      if (band.minUnarySteps === 0) continue;
+      for (let i = 0; i < 2000; i += 1) {
+        const puzzle = generatePuzzle(mode, level, { rng });
+        assert.ok(
+          unaryOperatorKeys(puzzle.secretRecipe).length >= band.minUnarySteps,
+          `${mode} level ${level} promised a unary step and did not use one`,
+        );
+      }
+    }
+  }
+});
+
+test('level 1 of Easy really is addition and subtraction only', () => {
+  const rng = seeded(31337);
+  const band = getBand('easy', 1);
+  assert.deepEqual([...band.binaryOps], ['add', 'sub']);
+  for (let i = 0; i < 2000; i += 1) {
+    for (const step of generatePuzzle('easy', 1, { rng }).secretRecipe.steps) {
+      assert.ok(step.op === 'add' || step.op === 'sub', `unexpected ${step.op} in Easy level 1`);
+    }
+  }
+});
+
 test('Easy stays on integers and never uses a unary operator', () => {
   const rng = seeded(1111);
   for (let i = 0; i < STRESS_RUNS; i += 1) {
@@ -381,7 +460,7 @@ test('within a mode, level adds orders rather than complexity (PRD 5.7)', () => 
   const spread = Math.max(...stepAverages) - Math.min(...stepAverages);
   assert.ok(spread <= 1.01, `chain length should stay flat across levels, drifted by ${spread}`);
   for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
-    assert.ok(ordersForLevel(level) >= 2);
+    assert.ok(customersForLevel(level) >= 2);
   }
 });
 
@@ -515,19 +594,18 @@ test('no value repeats inside a chain unless the step genuinely loops', () => {
 });
 
 /* ------------------------------------------------------------------ *
- * Level generation and misc
+ * Customer generation and misc
  * ------------------------------------------------------------------ */
 
-test('generateLevel produces exactly as many puzzles as the order count', () => {
+test('every customer of a level is generated one at a time, on demand', () => {
   const rng = seeded(5150);
   for (const mode of MODE_LIST) {
     for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
-      const result = generateLevel(mode, level, { rng });
-      assert.equal(result.puzzles.length, ordersForLevel(level));
-      assert.equal(result.orders, ordersForLevel(level));
-      for (const puzzle of result.puzzles) {
+      // The roster is now a count, not a pre-built list: customers walk in over
+      // time, so the generator is asked for one puzzle per arrival.
+      for (let i = 0; i < customersForLevel(level); i += 1) {
+        const puzzle = generatePuzzle(mode, level, { rng });
         assert.ok(R.isDisplayNice(puzzle.target));
-        assert.equal(puzzle.meta.orders, ordersForLevel(level));
       }
     }
   }
@@ -541,7 +619,6 @@ test('metadata is filled in consistently', () => {
       const { meta } = puzzle;
       assert.equal(meta.mode, mode);
       assert.equal(meta.level, level);
-      assert.equal(meta.orders, ordersForLevel(level));
       assert.equal(meta.steps, puzzle.secretRecipe.steps.length);
       assert.equal(meta.realIngredientCount, collectIngredients(puzzle.secretRecipe).length);
       assert.equal(meta.targetDisplay, R.toDisplayString(puzzle.target));

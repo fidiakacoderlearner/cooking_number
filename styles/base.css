@@ -96,6 +96,9 @@ button:focus-visible,
   --focus: var(--sky);
 
   --tap-min: 44px;
+  /* Customer chips are narrower than a full tile but still comfortably tappable
+     with a thumb, and they scroll horizontally when a level is busy. */
+  --chip-min: 78px;
 
   --shadow-hard: 0 4px 0 0 var(--ink);
   --shadow-hard-sm: 0 3px 0 0 var(--ink);

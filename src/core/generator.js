@@ -17,7 +17,7 @@
  */
 
 import * as R from './rational.js';
-import { getBand, ordersForLevel } from './difficulty.js';
+import { getBand } from './difficulty.js';
 import { applyOperator, consumesOperand } from './operators.js';
 import { evaluate, traceValues, unaryOperatorKeys } from './evaluate.js';
 
@@ -387,7 +387,7 @@ function addDistractors(leaves, target, band, rng) {
  *   ingredients: Array<{n:number,d:number}>,
  *   secretRecipe: { start: {n:number,d:number}, steps: Array<object> },
  *   meta: {
- *     mode: string, level: number, orders: number, steps: number,
+ *     mode: string, level: number, steps: number,
  *     unarySteps: number, realIngredientCount: number,
  *     distractorCount: number, targetDisplay: string, solutionDisplay: string
  *   }
@@ -437,7 +437,6 @@ export function generatePuzzle(mode, level, options = {}) {
       meta: {
         mode,
         level,
-        orders: ordersForLevel(level),
         steps: recipeObj.steps.length,
         unarySteps: unaryOperatorKeys(recipeObj).length,
         realIngredientCount: realIngredients.length,
@@ -479,19 +478,6 @@ export function displaySolution(recipeObj) {
 }
 
 /**
- * Generate a full level: one puzzle per order slot (2 / 3 / 4 / 4 / 5).
- */
-export function generateLevel(mode, level, options = {}) {
-  const rng = options.rng ?? Math.random;
-  const orders = ordersForLevel(level);
-  const puzzles = [];
-  for (let i = 0; i < orders; i += 1) {
-    puzzles.push(generatePuzzle(mode, level, { ...options, rng }));
-  }
-  return { mode, level, orders, puzzles };
-}
-
-/**
  * Sanity helper used by tests and the inspector: does the secret recipe really
  * reach the target, and is the whole chain within the band?
  */
@@ -513,7 +499,6 @@ export function assertPuzzleSolvable(puzzle, band) {
 
 export const GENERATOR = {
   generatePuzzle,
-  generateLevel,
   collectIngredients,
   displaySolution,
   assertPuzzleSolvable,

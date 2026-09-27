@@ -7,15 +7,98 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-### Ditambahkan
+### Changed
+- **Redesign inti: pelanggan berdatangan berkala.** Level tidak lagi berisi
+  satu pelanggan dengan satu pesanan. Pelanggan datang satu per satu pada
+  interval yang ditentukan mode dan level, dan menumpuk kalau pemain lambat.
+  Tekanan dibangun dari kecepatan kerja pemain, bukan dari berapa pesanan yang
+  ditumpuk sekaligus di awal.
+- **Nyawa dihapus total.** Tidak ada lagi `lives`, penalti, atau state
+  game-over. Kegagalan diwujudkan sebagai **walkout**: pelanggan pergi tanpa
+  reward, tanpa pelanggan pengganti, dan tanpa kesempatan kedua. Level selalu
+  selesai; yang membedakan level adalah skor.
+- **Tidak ada lagi pengurangan skor.** Walkout tidak mengurangi apa pun.
+- **Kesabaran per pelanggan** menggantikan satu timer per level. Setiap
+  pelanggan punya timer sendiri yang berjalan bersamaan dengan yang lain.
+- **Spawner berkala dengan tiga sifat:** interval dasar per mode dan level,
+  jitter supaya tidak terasa seperti metronom, dan decay supaya pelanggan
+  berikutnya makin cepat. Ada batas jumlah pelanggan di layar; saat penuh
+  spawner berhenti, bukan menolak pelanggan.
+- **Hitung mundur pelanggan berikutnya wajib terlihat**, agar tekanan terasa
+  seperti memburu waktu, bukan seperti kejutan acak.
+- **Satu stand, satu hidangan.** Dapur hanya bisa memasak untuk satu pelanggan
+  pada satu waktu, dan bahannya adalah milik pesanan itu. Inilah yang membuat
+  "pembatasan bahan" bekerja sebagai difficulty lever tanpa merusak jaminan
+  solvability.
+- **Alur served jadi lima langkah eksplisit:** pilih pelanggan, masak untuk
+  dia, masak, hidangan jadi, sajikan. Memindahkan pelanggan tidak pernah
+  menghapus pekerjaan yang sedang berjalan.
+- **Menyajikan dalam keadaan salah itu mungkin dan itu memang mekaniknya.**
+  Pemisahan `hasDish()` dan `isCorrect()` membuat tombol Sajian menyala begitu
+  rantai utuh, bukan hanya ketika hasilnya benar.
+- **Operator progresif per level**, bukan hanya per mode. Easy mulai dari
+  `+ -` saja, dan operator baru muncul seiring level naik.
+- **Nama game: Number Kitchen menjadi Cooking Number.**
+- Tagline: "Cook the number the customer ordered." menjadi
+  "Cook the number. Serve the customer.".
+
+### Removed
+- `TIMER_SECONDS`, `LIVES_PER_LEVEL`, `ORDERS_PER_LEVEL`, `ordersForLevel()`
+  dari `src/core/difficulty.js`.
+- `generateLevel()` dari `src/core/generator.js`. Roster pelanggan di-spawn
+  satu per satu, jadi tidak perlu lagi membuat seluruh level sekaligus.
+- `applyWrong()`, `PENALTY_TIMEOUT`, `PENALTY_WRONG`, dan `PHASES.IDLE` serta
+  `PHASES.SERVED` yang tidak pernah dibaca.
+- Sel nyawa dari HUD, dan seluruh string `hud.lives`.
+
+### Fixed
+Ditemukan lewat review dan `scripts/smoke-ui.js`, bukan oleh unit test — test yang
+sebelumnya hanya mencakup core, dan smoke test lama tidak pernah membiarkan
+waktu berjalan.
+
+- **Jam tidak pernah bergerak sama sekali.** `lastTick` di-update *sebelum* cek
+  "sudah lewat satu detik belum", sehingga tiap frame 250 ms membuang pecahan
+  detik yang sudah terkumpul dan `elapsed` tidak pernah mencapai 1000 ms.
+  Akibatnya tidak ada pelanggan yang pernah datang dan kesabaran tidak pernah
+  berkurang. Bug ini sudah ada di versi 1.0 dan lolos karena tidak ada satu pun
+  test yang menunggu waktu lewat di browser.
+- **Level 2 dan seterusnya tidak pernah terbuka.** `writeProgress` menyimpan
+  level yang sedang dimainkan, bukan level yang selesai, sehingga nilai tertinggi
+  yang tersimpan tidak pernah naik dari 1 dan level berikutnya selalu terkunci.
+  Progres dipindah ke modul pure `src/ui/progress.js`.
+- **Bagi nol tidak pernah dicegat.** Generator tidak pernah menaruh nol di rak
+  sebagai bahan, jadi penjaga yang lama ("bagi dengan kartu nol") tidak pernah
+  bisa terpicu. Yang bisa terjadi di permainan nyata adalah total berjalan yang
+  jadi nol sendiri (`5 - 5`), dan itu sekarang ditolak dengan
+  `work.invalidDivision`.
+- **Pesan "mulai dari angka dulu" tidak pernah muncul.** Pemeriksaan urutan
+  menutup jalan ke pesan yang lebih spesifik sebelum pesan yang lebih spesifik itu dicek, sehingga
+  pemain hanya pernah melihat "langkah itu tidak bisa dipakai di sini".
+- **Mengetuk chip pelanggan akan langsung menyajikan.** Chip adalah drop zone
+  serve, jadi penangan ketuk di `drag.js` salah membacanya sebagai "sajikan yang
+  ada di stand". Sekarang hanya piringnya sendiri yang memicu serve.
+- Keluar dari level di tengah transisi melempar `TypeError` pada versi 1.0.
+  Jalur serve yang ditunda dihapus seluruhnya, sehingga kelas bug ini tidak ada
+  lagi.
+- Dua import mati di layer UI: `toDisplayString` di `controller.js` dan `t` di
+  `drag.js`. `scripts/check-imports.js` tidak pernah memindai `src/ui`, jadi
+  keduanya lolos tanpa terdeteksi. Checker sekarang memindai kedua layer.
+- Solver di dalam `smoke-ui.js` pernah membawa salinan aritmetik pecahan sendiri
+  yang membuang tanda setiap angka negatif, sehingga ia mengembalikan rantai
+  yang tidak sampai target dan menyalahkan game. Sekarang solver memakai
+  `applyOperator` dan `equals` dari core asli, jadi hanya bisa berbeda dari game
+  kalau game berbeda dari dirinya sendiri.
+
+
+### Added
 - Struktur dokumen proyek: `AGENTS.md`, `CHANGELOG.md`, `PLAN.md`.
 - **UI playable** (`index.html`, `styles/`, `src/ui/`)
   - `i18n.js` - semua string UI, English sebagai default, toggle ID/EN.
   - `assets.js` - path placeholder WebP dan definisi palet operator.
-  - `state.js` - state permainan, pengelolaan ekspresi, dan formula skor.
+  - `state.js` - state permainan, ekspresi, dan formula skor.
   - `view.js` - seluruh render DOM, tanpa aritmetika.
   - `drag.js` - drag-and-drop `interact.js` plus tap-to-place.
-  - `controller.js` - loop permainan, timer, dan transisi order/level.
+  - `controller.js` - loop permainan, timer, dan transisi.
   - `app.js` - titik masuk.
 - **Gaya toon-toon** (`styles/base.css`, `layout.css`, `theme.css`,
   `animations.css`): warna solid, satu warna outline, tanpa gradien,
@@ -23,44 +106,25 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Aset placeholder WebP** (`assets/placeholder/`): latar, meja, piring,
   topi koki, dan 3 varian pelanggan, dibuat datar dan geometris oleh
   `scripts/make-placeholder-assets.py` agar mudah diganti aset tim.
-- `vendor/interact.min.js` (interact.js 1.10.27, sekitar 98 KB) divendor lokal.
+- `vendor/interact.min.js` (interact.js 1.10.27, sekitar 96 KB) divendor lokal.
 - `favicon.ico`, `manifest.webmanifest`, dan ikon 192 px.
 - Tombol keluar di HUD, supaya pemain tidak terjebak di dalam level.
-- `scripts/smoke-ui.js` - mengendarai game sungguhan di Chrome untuk memastikan
-  alur-ui benar-benar bekerja.
+- `scripts/smoke-ui.js` - mengendarai game sungguhan di Chrome.
 - `scripts/check-imports.js` - mendeteksi unused import.
 
-### Diperbaiki
-Ditemukan oleh `scripts/smoke-ui.js`, bukan oleh unit test.
-
-- Escape sequence tidak valid pada `view.js` (huruf `b` yang tidak lengkap)
-  membuat seluruh modul gagal dimuat, sehingga game tidak bisa dimulai.
-- `consumesOperand` diimpor dari modul yang salah, yaitu `evaluate.js`
-  alih-alih `operators.js`.
-- `ordersForLevel` dipanggil sebagai anggota dari namespace modul `state.js`,
-  padahal fungsi itu berasal dari `difficulty.js`.
-- `dom` pada `view.js` tidak diekspor sebagai named export, sehingga
-  `view.dom.hudScore` melempar error dan **game membeku setelah pesanan
-  servem selesai**.
-- Kartu operator biner tidak pernah dirender karena `arity` dari core bernilai
-  `binary`, sementara kelas CSS mengharapkan `operator`.
-- `expectedKind` salah urutan: setelah operator biner, kartu angka justru
-  dinonaktifkan, sehingga rantai panjang tidak bisa diselesaikan.
-- Operator unary bisa dipakai setelah operator biner; sekarang hanya boleh
-  setelah sebuah nilai.
-- Mengganti bahasa saat tidak ada permainan aktif melompat dari menu ke layar
-  pemilihan level.
-- Timer masih memakai angka draf lama, bukan 30/20/15 yang telah disepakati.
-- Ketuk kartu beruntun tidak pernah menutupi ekspresi, sehingga tombol Sajikan
-  tetap nonaktif. Sekarang setiap ketukan langsung menambahkan kartu.
-
 ### Keputusan Teknis
-- Timer final: Easy 30 detik, Medium 20 detik, Hard 15 detik.
-- Skor: base 10/15/20 per pesanan, plus bonus kecepatan maksimum 50% dari base.
-  Waktu habis dikurangi 10 poin, jawaban salah dikurangi 5 poin, skor tidak
-  pernah turun di bawah nol.
-- Ketuk kartu langsung menambahkan kartu tersebut ke area kerja, sehingga
-  `4`, `x`, `7` cukup tiga ketukan dan tombol Sajikan langsung aktif.
+- **Gagal = walkout.** Tidak ada nyawa, tidak ada level gagal, tidak ada
+  pelanggan pengganti. Pelanggan yang hilang hanya mengurangi skor yang bisa
+  didapat, bukan membatalkan level.
+- **Bahan stand milik pelanggan yang sedang dimasak.** Kalau bahan semua
+  pelanggan bercampur, pemain bisa menghabiskan bahan milik satu pesanan untuk
+  pesanan lain dan membuat level mustahil diselesaikan.
+- **Pindah pelanggan tidak menghapus apa pun.**Aksi yang merusak hanya boleh
+  dipicu secara sadar; walkout karena salah klik adalah kegagalan desain.
+- **Spawner berhenti, bukan menolak**, saat layar penuh. Pelanggan yang tidak
+  bisa masuk bukan walkout, karena itu bukan salah pemain.
+- Timer awal: Easy 50 detik, Medium 44 detik, Hard 38 detik kesabaran; interval
+  dasar 15, 12, dan 10 detik. Semua angka ini titik awal untuk playtest.
 - Placeholder WebP dipilih daripada ilustrasi hasil generate AI, sesuai aturan
   anti-AI-slop.
 

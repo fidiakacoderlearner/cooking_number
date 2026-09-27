@@ -1,16 +1,15 @@
 /**
- * Game controller: wires the core generator to the view, owns the timer, and
- * enforces the flow menu -> level select -> orders -> level done.
+ * Game controller: wires the core generator to the view, owns the clock, and
+ * enforces the flow menu -> level select -> customers -> level done.
  */
 
 import { LEVELS_PER_MODE } from '../core/difficulty.js';
 import { toDisplayString } from '../core/rational.js';
 import { t, toggleLanguage } from './i18n.js';
+import { completeLevel, unlockedFor } from './progress.js';
 import * as S from './state.js';
 import * as view from './view.js';
 import * as drag from './drag.js';
-
-const STORAGE_KEY = 'nk.progress';
 
 let state = null;
 let activeMode = 'easy';
@@ -18,37 +17,7 @@ let timerHandle = null;
 let lastTick = 0;
 
 /* ------------------------------------------------------------------ *
- * Progress persistence
- * ------------------------------------------------------------------ */
-
-function readProgress() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return typeof parsed === 'object' && parsed !== null ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeProgress(mode, level) {
-  try {
-    const all = readProgress();
-    all[mode] = Math.max(Number(all[mode] ?? 0), level);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  } catch {
-    // Storage unavailable: progress simply will not persist.
-  }
-}
-
-function unlockedFor(mode) {
-  const all = readProgress();
-  return Math.min(LEVELS_PER_MODE, Math.max(1, Number(all[mode] ?? 1)));
-}
-
-/* ------------------------------------------------------------------ *
- * Timer
+ * Clock
  * ------------------------------------------------------------------ */
 
 function stopTimer() {
@@ -65,70 +34,77 @@ function startTimer() {
     if (!state || state.phase !== S.PHASES.PLAYING) return;
     const now = Date.now();
     const elapsed = Math.max(0, now - lastTick);
-    lastTick = now;
 
-    // Consume whole seconds only, so a slow frame never eats extra time.
+    // Whole seconds only, so a slow frame never drains extra patience. The
+    // bookkeeping below has to come *after* this bail-out: resetting lastTick
+    // first would throw away the partial second on every 250ms frame and the
+    // clock would never reach a whole second at all.
     const seconds = Math.floor(elapsed / 1000);
     if (seconds < 1) return;
+    lastTick = now;
 
-    const wasPlaying = state.phase === S.PHASES.PLAYING;
-    S.tick(state, seconds);
-    view.renderHud(state);
-    if (wasPlaying && state.phase !== S.PHASES.PLAYING) handleTimeout();
+    const events = S.tick(state, seconds);
+
+    // React to what happened *this* tick. Reading lastResult instead would
+    // replay the same walkout message once a second, forever.
+    if (events.walked.length > 0) {
+      view.shake(view.dom.queue);
+      view.feedback(t('result.lost'), 'bad');
+    }
+
+    view.render(state);
+    if (events.phase === S.PHASES.LEVEL_DONE) showLevelDone();
   }, 250);
 }
 
 /* ------------------------------------------------------------------ *
- * Order outcomes
+ * Serving
  * ------------------------------------------------------------------ */
 
-function handleTimeout() {
-  stopTimer();
-  S.applyTimeout(state);
-  view.feedback(t('result.tooSlow'), 'bad');
-  view.shake(view.dom.hudTimer);
-
-  if (state.phase === S.PHASES.GAME_OVER) {
-    setTimeout(showGameOver, 700);
-  } else {
-    setTimeout(() => {
-      view.feedback(null);
-      S.advanceOrder(state);
-      afterOrderLoaded();
-    }, 900);
-  }
-}
-
-function handleServe() {
-  if (!state || !S.isServable(state)) {
-    if (state) view.feedback(t('work.keepGoing'), 'hint');
+function handleServeTo(orderId) {
+  if (!state || state.phase !== S.PHASES.PLAYING) return;
+  const outcome = S.serveTo(state, orderId);
+  if (!outcome.ok) {
+    if (outcome.reason) view.feedback(t(outcome.reason), 'hint');
+    view.render(state);
     return;
   }
-  stopTimer();
-  const result = S.applySuccess(state);
-  view.steamBurst();
-  view.feedback(t('result.correct', { seconds: result.seconds }), 'good');
-  view.bump(view.dom.hudScore);
-  writeProgress(state.mode, state.level);
 
-  setTimeout(() => {
-    S.advanceOrder(state);
-    if (state.phase === S.PHASES.LEVEL_DONE) {
-      showLevelDone();
-    } else {
-      afterOrderLoaded();
-    }
-  }, 1100);
+  if (outcome.correct) {
+    view.steamBurst();
+    view.bump(view.dom.hudScore);
+    view.feedback(t('result.served', { points: outcome.points }), 'good');
+  } else {
+    // A walkout is the most destructive thing in the game, so it is never silent.
+    view.shake(view.dom.queue);
+    view.feedback(
+      t('work.wrong', {
+        value: toDisplayString(outcome.value),
+        target: toDisplayString(outcome.order.puzzle.target),
+      }),
+      'bad',
+    );
+  }
+  view.render(state);
+  if (state.phase === S.PHASES.LEVEL_DONE) showLevelDone();
 }
 
 /* ------------------------------------------------------------------ *
  * Flow
  * ------------------------------------------------------------------ */
 
-function afterOrderLoaded() {
-  state.phase = S.PHASES.PLAYING;
-  view.render(state);
-  startTimer();
+function showLevelDone() {
+  stopTimer();
+  const served = S.ordersServed(state);
+  const isFinal = state.level >= LEVELS_PER_MODE;
+  // Only a finished level may open the next one.
+  completeLevel(state.mode, state.level);
+  view.dom.overlaySummary.textContent = served === state.rosterSize
+    ? t('overlay.allDone')
+    : t('overlay.summary', { served, total: state.rosterSize });
+  view.dom.overlayScore.textContent = t('overlay.levelScore', { score: state.levelScore });
+  view.dom.overlayScore.hidden = isFinal;
+  view.showOverlay('level');
 }
 
 function startLevel(mode, level) {
@@ -139,21 +115,6 @@ function startLevel(mode, level) {
   view.feedback(null);
   view.render(state);
   startTimer();
-}
-
-function showLevelDone() {
-  stopTimer();
-  const isFinal = state.level >= LEVELS_PER_MODE;
-  view.dom.overlayScore.textContent = isFinal
-    ? t('overlay.allDone')
-    : t('overlay.levelScore', { score: state.levelScore });
-  view.showOverlay('level');
-}
-
-function showGameOver() {
-  stopTimer();
-  view.dom.overlayFinal.textContent = t('overlay.finalScore', { score: state.score });
-  view.showOverlay('gameover');
 }
 
 function backToMenu() {
@@ -173,13 +134,24 @@ function openLevelSelect(mode) {
  * Tile drops
  * ------------------------------------------------------------------ */
 
-function handleDrop(tile, zoneKind) {
+function handleDrop(tile, zoneKind, orderId) {
   if (!state || state.phase !== S.PHASES.PLAYING) return;
 
   if (zoneKind === 'serve') {
-    handleServe();
+    if (tile.kind === 'serve') {
+      // The plate is the tap-to-serve path: it always serves whoever is cooking.
+      const order = S.cookingOrder(state);
+      if (!order) {
+        view.feedback(t('work.noCustomer'), 'hint');
+        return;
+      }
+      handleServeTo(order.id);
+    } else if (orderId !== null) {
+      handleServeTo(orderId);
+    }
     return;
   }
+
   const item =
     tile.kind === 'number'
       ? { kind: 'number', value: tile.value }
@@ -190,16 +162,12 @@ function handleDrop(tile, zoneKind) {
   const result = S.pushTile(state, item);
   if (!result.ok) {
     view.feedback(t(result.reason ?? 'work.badStep'), 'bad');
+    view.render(state);
     return;
   }
 
-  if (state.expression.length === 1) {
-    view.feedback(t('work.nextOperator'), 'hint');
-  } else if (result.reachedTarget) {
-    view.feedback(t('work.targetHit'), 'good');
-  } else {
-    view.feedback(t('work.keepGoing'), 'hint');
-  }
+  if (state.expression.length === 1) view.feedback(t('work.nextOperator'), 'hint');
+  else view.feedback(t('work.keepGoing'), 'hint');
   view.render(state);
 }
 
@@ -207,13 +175,11 @@ function handleDrop(tile, zoneKind) {
  * Actions
  * ------------------------------------------------------------------ */
 
-function handleAction(action) {
+function handleAction(action, dataset) {
   switch (action) {
     case 'toggle-lang':
       toggleLanguage();
       view.applyStaticStrings();
-      // Re-render whatever is on screen, but never navigate: switching language
-      // from the menu should leave the player on the menu.
       if (state) view.render(state);
       else if (document.body.dataset.screen === 'levels') {
         view.renderLevelGrid(activeMode, unlockedFor(activeMode));
@@ -224,8 +190,28 @@ function handleAction(action) {
       backToMenu();
       break;
 
+    case 'select-order':
+      if (state) {
+        S.selectOrder(state, Number(dataset.orderId));
+        view.render(state);
+      }
+      break;
+
+    case 'cook-for':
+      if (state) {
+        const result = S.startCooking(state, Number(dataset.orderId));
+        if (!result.ok) view.feedback(t(result.reason), 'hint');
+        else view.feedback(null);
+        view.render(state);
+      }
+      break;
+
     case 'serve':
-      handleServe();
+      if (state) {
+        const order = S.cookingOrder(state);
+        if (order) handleServeTo(order.id);
+        else view.feedback(t('work.noCustomer'), 'hint');
+      }
       break;
 
     case 'undo':
@@ -234,22 +220,12 @@ function handleAction(action) {
       break;
 
     case 'clear':
-      if (state && S.clearExpression(state)) view.render(state);
+      if (state && S.clearStand(state)) view.render(state);
       break;
 
     case 'next-level':
       if (state && state.level < LEVELS_PER_MODE) startLevel(state.mode, state.level + 1);
       else backToMenu();
-      break;
-
-    case 'retry-level':
-      if (state) {
-        S.resetLevel(state);
-        view.showOverlay(null);
-        view.feedback(null);
-        view.render(state);
-        startTimer();
-      }
       break;
 
     default:
@@ -265,10 +241,7 @@ export function init() {
   view.cacheDom();
   view.applyStaticStrings();
 
-  drag.configure({
-    onDrop: handleDrop,
-    onToast: (message) => view.toast(message),
-  });
+  drag.configure({ onDrop: handleDrop });
   drag.init(document);
 
   document.addEventListener('click', (event) => {
@@ -284,12 +257,25 @@ export function init() {
       return;
     }
 
-    const action = event.target.closest?.('[data-action]')?.dataset.action;
-    if (action) handleAction(action);
+    // Buttons win over their container, so the "Cook for" button on a chip is
+    // never swallowed by the chip's own select behaviour.
+    const trigger = event.target.closest?.('[data-action]');
+    if (trigger) {
+      handleAction(trigger.dataset.action, trigger.dataset);
+      return;
+    }
+
+    // Tapping a chip only marks it. Selecting must never cost the player a
+    // half-built dish (AGENTS.md rule 11).
+    const chip = event.target.closest?.('.chip');
+    if (chip && state) {
+      S.selectOrder(state, Number(chip.dataset.orderId));
+      view.render(state);
+    }
   });
 
   // Pause the clock when the tab is hidden so a backgrounded tab cannot drain
-  // an order's time while the player is away.
+  // anyone's patience while the player is away.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopTimer();
@@ -300,7 +286,5 @@ export function init() {
 
   view.showScreen('menu');
 
-  return { getState: () => state, startLevel, openLevelSelect, backToMenu, handleDrop };
+  return { getState: () => state, startLevel, openLevelSelect, backToMenu, handleDrop, handleServeTo };
 }
-
-export const CONTROLLER = { init, startLevel, openLevelSelect, backToMenu };
