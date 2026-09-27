@@ -247,23 +247,72 @@ test('the stand is empty until a customer is picked for cooking', () => {
   assert.ok(S.standIngredients(state).length > 0);
 });
 
-test('selecting a customer never destroys work (AGENTS.md rule 11)', () => {
+test('tapping a customer chip is the whole commitment', () => {
   const state = freshState();
   S.tick(state, 1);
-  const first = state.orders[0];
-  S.startCooking(state, first.id);
-  S.pushTile(state, { kind: 'number', value: first.puzzle.ingredients[0] });
-  const built = state.expression.length;
-  assert.ok(built > 0);
+  const order = state.orders[0];
+  assert.equal(state.cookingOrderId, null, 'nobody is being cooked for before the tap');
 
-  // Browsing other customers must be free.
+  const result = S.pickCustomer(state, order.id);
+  assert.equal(result.ok, true);
+  assert.equal(state.cookingOrderId, order.id, 'one tap loads the stand');
+  assert.equal(order.status, S.ORDER_STATUS.COOKING);
+  assert.ok(S.standIngredients(state).length > 0, 'the ingredients are already loaded');
+});
+
+test('a built dish is never destroyed without asking (AGENTS.md rule 11)', () => {
+  // Tapping a chip used to be a first step followed by a "Cook for him" button.
+  // The button is gone, so one tap now costs more, and the guard that used to
+  // live in that button has to hold the work instead.
+  const state = freshState('easy', 3);
   S.tick(state, 1);
-  const second = state.orders[0].id === first.id ? null : state.orders[0];
-  if (second) {
-    const picked = S.selectOrder(state, second.id);
-    assert.ok(picked);
-    assert.equal(state.expression.length, built, 'browsing must not clear the stand');
+  const first = state.orders[0];
+  S.pickCustomer(state, first.id);
+
+  // Enough of a dish that discarding it is worth a question: past the free
+  // threshold, which is two tiles.
+  buildSecretRecipe(state, first);
+  const built = state.expression.length;
+  assert.ok(built > S.FREE_SWITCH_TILES, `needs a dish past ${S.FREE_SWITCH_TILES} tiles, got ${built}`);
+
+  // A second customer has to exist for the switch to mean anything.
+  let second = null;
+  for (let i = 0; i < 120 && !second; i += 1) {
+    S.tick(state, 1);
+    second = state.orders.find((o) => o.status === S.ORDER_STATUS.WAITING) ?? null;
   }
+  assert.ok(second, 'a second customer turned up');
+
+  const refused = S.pickCustomer(state, second.id);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.reason, 'confirm.switch', 'the caller has to ask, not clear');
+  assert.equal(state.expression.length, built, 'the dish is still on the stand');
+  assert.equal(state.cookingOrderId, first.id, 'the stand still belongs to the first customer');
+});
+
+test('switching is free while the dish is still small', () => {
+  const state = freshState('easy', 3);
+  S.tick(state, 1);
+  const first = state.orders[0];
+  S.pickCustomer(state, first.id);
+  S.pushTile(state, { kind: 'number', value: first.puzzle.ingredients[0] });
+  assert.equal(state.expression.length, 1);
+  if (S.FREE_SWITCH_TILES >= 2) {
+    S.pushTile(state, { kind: 'operator', op: 'add' });
+  }
+  assert.ok(state.expression.length <= S.FREE_SWITCH_TILES, 'small enough to discard');
+
+  let second = null;
+  for (let i = 0; i < 120 && !second; i += 1) {
+    S.tick(state, 1);
+    second = state.orders.find((o) => o.status === S.ORDER_STATUS.WAITING) ?? null;
+  }
+  assert.ok(second, 'a second customer turned up');
+
+  const result = S.pickCustomer(state, second.id);
+  assert.equal(result.ok, true, 'no question asked over a tile or two');
+  assert.equal(state.expression.length, 0, 'the stand was cleared for the new customer');
+  assert.equal(state.cookingOrderId, second.id);
 });
 
 test('cooking for a second customer is refused while a dish is on the stand', () => {

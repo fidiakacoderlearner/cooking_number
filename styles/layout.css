@@ -240,18 +240,28 @@ body {
   border: var(--stroke) solid var(--ink);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-hard-sm);
-  touch-action: none;
 }
 
 .chip.is-selected {
-  border-color: var(--butter-deep);
+  border-color: var(--butter-dark);
   background: #fff8dd;
   transform: translateY(-2px);
 }
 
+/**
+ * The customer the stand is cooking for.
+ *
+ * This is now the only thing on screen that says so: the stand used to carry a
+ * "Building a dish for 7" line as well, and a playtest asked for fewer elements.
+ * It has to read at a glance from across a phone, hence the thicker outline and
+ * the lift rather than a tint alone.
+ */
 .chip.is-cooking {
   border-color: var(--leaf);
   background: #f2fbf0;
+  border-width: 4px;
+  box-shadow: 0 4px 0 0 var(--leaf-dark);
+  transform: translateY(-2px);
 }
 
 .chip.is-over {
@@ -304,11 +314,11 @@ body {
    thresholds: yellow is the warning, red is the last chance. Measured in a phone
    playtest, one threshold was not enough to act on. */
 .chip.is-warn .chip__meter-fill {
-  background: var(--butter-deep);
+  background: var(--butter-dark);
 }
 
 .chip.is-warn .chip__seconds {
-  color: var(--butter-deep);
+  color: var(--butter-dark);
 }
 
 .chip.is-urgent .chip__meter-fill {
@@ -317,26 +327,6 @@ body {
 
 .chip.is-urgent .chip__seconds {
   color: var(--tomato);
-}
-
-.chip__cook {
-  grid-column: 1 / -1;
-  min-width: 0;
-  min-height: var(--tap-min);
-  margin-top: 2px;
-  background: var(--butter);
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chip__cook:active {
-  transform: translateY(1px);
 }
 
 /* -------------------------------------------------------------- Stand */
@@ -349,30 +339,6 @@ body {
   min-height: 0;
 }
 
-.stand__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  background: var(--butter);
-  border: var(--stroke) solid var(--ink);
-  border-radius: var(--radius-sm);
-}
-
-.stand__head[hidden] {
-  display: none;
-}
-
-.stand__portrait {
-  width: 30px;
-  height: 36px;
-  flex: none;
-}
-
-.stand__for {
-  font-size: 0.82rem;
-  font-weight: 800;
-}
 /* ------------------------------------------------------------ Counter */
 
 .counter {
@@ -400,8 +366,9 @@ body {
 }
 
 .counter__plate-img {
-  width: 128px;
+  width: 148px;
   opacity: 0.95;
+  pointer-events: none;
 }
 
 .counter__plate-hint {
@@ -418,36 +385,35 @@ body {
 
 /* The finished value is the player's last chance to see that the dish does not
    match the order (AGENTS.md rule 11), so it is the largest text on the play
-   screen and it sits on the plate rather than floating above it. A phone
-   playtest put it off the top edge in small type and the first reading was that
-   there was no result at all. */
+   screen. It is a band across the middle of the plate rather than a cover over
+   it: filling the whole plate hid the plate image completely, which a playtest
+   reported as the plate picture having disappeared. The band is sized to its own
+   text, so the plate stays visible above and below it whatever the value is. */
 .counter__plate-value {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 14px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100% - 10px);
+  padding: 2px 12px;
   background: var(--leaf);
   color: #fff;
   border: 3px solid var(--ink);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-hard);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard-sm);
   font-size: 1.9rem;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.15;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
 }
 
 .counter__plate.has-dish .counter__plate-hint {
   display: none;
-}
-
-.counter__plate.is-over {
-  border-color: var(--leaf);
-  transform: scale(1.04);
 }
 
 /* ---------------------------------------------------------- Workspace */

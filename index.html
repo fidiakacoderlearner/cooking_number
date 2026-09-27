@@ -97,13 +97,8 @@
   </section>
 
   <div class="stand">
-    <div class="stand__head" data-stand-head hidden>
-      <img class="stand__portrait" data-stand-portrait src="" alt="" width="48" height="56">
-      <span class="stand__for" data-stand-for></span>
-    </div>
-
     <div class="counter">
-      <div class="counter__plate" data-drop-zone="serve" data-draggable="true">
+      <div class="counter__plate" data-draggable="true">
         <img class="counter__plate-img" src="assets/placeholder/plate.webp" alt="" width="200" height="120">
         <span class="counter__plate-value" data-plate-value></span>
         <span class="counter__plate-hint" data-i18n="stand.dropHere">Drag the dish to a customer</span>
@@ -112,9 +107,9 @@
 
     <div class="workspace" data-workspace>
       <div class="workspace__line" data-workspace-line></div>
-      <p class="workspace__empty" data-workspace-empty data-i18n="work.dragHint">
-        Tap number and operator tiles to build a dish.
-      </p>
+    <p class="workspace__empty" data-workspace-empty data-i18n="work.dragHint">
+    Tap a customer, then build their number.
+  </p>
     </div>
 
     <div class="feedback" data-feedback hidden>
@@ -158,6 +153,26 @@
 </div>
 
 <div class="toast" data-toast hidden></div>
+
+<!-- ============================= CONFIRM ============================= -->
+<!-- Asked only when a customer is swapped out from under a half-built dish, so
+     that one tap cannot cost real work. The clock is stopped while it is open. -->
+<div class="overlay" data-overlay="confirm" hidden>
+  <div class="overlay__card" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+    <h2 class="overlay__title" id="confirm-title" data-i18n="confirm.switchTitle">Leave this dish?</h2>
+    <p class="overlay__text" id="confirm-body" data-confirm-body data-i18n="confirm.switchBody">
+    Cooking for another customer throws this one away.
+    </p>
+    <div class="overlay__actions">
+      <button class="btn btn--primary" type="button" data-action="confirm-stay" data-confirm="stay">
+        <span data-i18n="confirm.stay">Keep cooking</span>
+      </button>
+      <button class="btn btn--ghost" type="button" data-action="confirm-leave">
+        <span data-i18n="confirm.leave">Switch anyway</span>
+      </button>
+    </div>
+  </div>
+</div>
 
 <script src="vendor/interact.min.js"></script>
 <script type="module" src="src/ui/app.js"></script>

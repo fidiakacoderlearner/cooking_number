@@ -196,7 +196,17 @@ const MEDIUM = Object.freeze({
   allowNegatives: false,
   allowFractions: true,
   maxPowExponent: 2,
-  fractionChance: 0.4,
+  /**
+   * How often a sampled ingredient is a fraction.
+   *
+   * This was 0.4, which made Medium carry more fractions per tile than Hard
+   * carries, so the mode mapped to grade 8 turned out harder than the mode
+   * mapped to grade 9. A playtest put that in plain words: fractions were
+   * overwhelming, Medium level 5 was only half finished, and the top of Medium
+   * felt harder than the bottom of Hard. It now sits below Hard's 0.3 so the
+   * mode order holds on the material as well as on the operators.
+   */
+  fractionChance: 0.26,
   maxFractionDenominator: 4,
 });
 

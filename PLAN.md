@@ -65,19 +65,17 @@ karena salah klik.
       di langkah pertama.
 - [ ] Perbaiki teks i18n yang belum natural saat dibaca.
 
-### 3. Mockup alur - 2 jam
+### 3. Mockup alur - [x] selesai
 
-Sudah diputuskan, belum dikerjakan. Setelah playtest kedua supaya tidak ada
-dua kali pengujian dengan bentuk yang berbeda.
-
-- [ ] Hapus tombol "Masak untuk dia": ketuk chip langsung memuat stand
-- [ ] Hapus teks "Building a dish for X" (hijau sudah menunjuk pelanggan itu)
-- [ ] Popup konfirmasi pindah pelanggan kalau stand berisi lebih dari 2 tile,
-      dan timer berhenti selama popup terbuka
-- [ ] Pertimbangkan menghapus jalur drag-serve **setelah** ada playtest yang
-      memakai drag dengan sadar. Jangan dihapus sekarang: drag baru diperbaiki
-      di Fase 1, jadi belum ada yang pernah mencobanya dengan gpsional yang
-      benar
+- [x] Tombol "Masak untuk dia" dihapus: ketuk chip langsung memuat stand
+- [x] Teks "Building a dish for X" dan salinan potret di stand dihapus
+- [x] Popup konfirmasi pindah pelanggan kalau stand berisi lebih dari 2 tile,
+      dan jam berhenti selama popup terbuka
+- [x] Drag-serve dihapus; tile masih bisa diseret ke stand
+- [ ] **Putuskan**: masih ada kalanya serve hanya lewat tombol Sajian (satu
+      jalur, tidak bisa salah), atau ketuk piring ditambahkan sebagai kedua
+      jalur (  lebih cepat di layar kecil, tapi dua tempat untuk dipelajari).
+  Playtest berikutnya yang memutuskan.
 
 ### 4. Kaidah operasi - 1-2 hari
 
@@ -272,16 +270,28 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
       bisa menyusut: tiga chip butuh 278px dari 320px, jadi tidak ada lagi yang
       tersembunyi
 - [x] Sinyal kesabaran hidup: kuning di bawah 2/3, merah di bawah 1/3
-- [x] Nilai akhir mengisi piring, bukan melayang di atasnya
+- [x] Nilai akhir jadi pita di tengah piring, dan piringnya tetap terlihat
 - [x] Akar kuadrat ditulis `√16` dalam satu slot
 - [x] Drag tile terlihat mengikuti jari (ditemukan lewat playtest)
+- [x] Urutan operator biner per level benar-benar diterapkan di rak
+- [x] Kepadatan pecahan Medium di bawah Hard, jadi urutan mode berlaku pada
+      materi dan bukan cuma pada operator
+- [x] `npm run check:styles`: variabel CSS yang hilang tidak bisa lolos diam-diam
+- [ ] **Angka kesabaran belum diubah.** Hitungan menunjukkan anggaran per
+      hidangan turun sekitar 38% dari level 1 ke level 5 di ketiga mode
+      (Easy 23,8s ke 14,9s, Medium 20,0s ke 12,1s, Hard 17,0s ke 10,5s) sementara
+      beban aritmetiknya naik. Playtest kedua bilang tingkat
+      kesulitan "normal aja dikurangi" tapi angka spawner dan kesabaran
+      **sengaja tidak disentuh** sampai playtest ketiga, supaya tidak ada dua
+      kali pengujian dengan game yang berbeda.
 - [ ] Uji drag di perangkat asli: apakah drag merebut scroll halaman
 - [ ] Styling akhir dan polish
 
 ## Fase 4 - Submission - [ ]
 
 - [ ] Materi submission: video demo (bisa dari rekaman playtest) dan deskripsi
-- [ ] Checklist rubrik lomba
+      yang sudah ada di `SUBMISSION.md`
+- [ ] Checklist rubrik lomba, sudah ada di `SUBMISSION.md`
 - [ ] Nice-to-have hanya kalau benar-benar ada waktu kosong: suara, animasi
       karakter, leaderboard lokal. **Prioritaskan playtest dan video demo dulu.**
 

@@ -43,16 +43,13 @@ const STRINGS = {
     'customer.walkedWrong': '{target} was ordered, not {value}',
     'customer.walkedSlow': 'Ran out of patience',
     'customer.select': 'Select this customer',
-    'customer.cookFor': 'Cook',
-  'customer.cookForTarget': 'Cook the dish for {target}',
     'customer.serveTo': 'Serve to {target}',
     'customer.timeLeft': '{seconds} seconds left',
 
     'stand.empty': 'The stand is empty',
-    'stand.pickCustomer': 'Tap a customer, then cook for them.',
-    'stand.building': 'Building a dish for {target}',
+    'stand.pickCustomer': 'Tap a customer to start cooking.',
     'stand.ready': 'Dish ready: {value}',
-    'stand.dropHere': 'Drag the dish to a customer',
+    'stand.dropHere': 'Tap to serve',
     'stand.running': 'Running total',
 
     'op.add': 'plus',
@@ -63,7 +60,7 @@ const STRINGS = {
     'op.pow3': 'cubed',
     'op.sqrt': 'square root',
 
-    'work.dragHint': 'Tap number and operator tiles to build a dish.',
+    'work.dragHint': 'Tap a customer, then build their number.',
     'work.noCustomer': 'Cook for a customer first.',
     'work.standBusy': 'Finish or clear the dish on the stand first.',
     'work.notReady': 'The dish is not finished yet.',
@@ -76,6 +73,13 @@ const STRINGS = {
     'work.badStep': 'That step does not work here.',
     'work.keepGoing': 'Good step, keep cooking.',
     'work.wrong': 'That is {value}, they wanted {target}. They walked out.',
+
+    // Asked when a customer is swapped out from under a half-built dish, past the
+    // point where the work is small enough to discard without asking.
+    'confirm.switchTitle': 'Leave this dish?',
+    'confirm.switchBody': 'Cooking for the customer who wants {target} puts these {tiles} tiles in the bin.',
+    'confirm.stay': 'Keep cooking',
+    'confirm.leave': 'Switch anyway',
 
     'action.serve': 'Serve',
     'action.undo': 'Undo',
@@ -142,16 +146,13 @@ const STRINGS = {
     'customer.walkedWrong': 'Pesanannya {target}, bukan {value}',
     'customer.walkedSlow': 'Kesabarannya habis',
     'customer.select': 'Pilih pelanggan ini',
-    'customer.cookFor': 'Masak',
-  'customer.cookForTarget': 'Masak hidangan untuk {target}',
     'customer.serveTo': 'Sajikan ke {target}',
     'customer.timeLeft': 'Sisa {seconds} detik',
 
     'stand.empty': 'Stand masih kosong',
-    'stand.pickCustomer': 'Ketuk pelanggan, lalu masak untuk dia.',
-    'stand.building': 'Sedang membangun hidangan untuk {target}',
+    'stand.pickCustomer': 'Ketuk pelanggan untuk mulai memasak.',
     'stand.ready': 'Hidian siap: {value}',
-    'stand.dropHere': 'Seret hidangan ke pelanggan',
+    'stand.dropHere': 'Ketuk untuk sajikan',
     'stand.running': 'Total berjalan',
 
     'op.add': 'tambah',
@@ -162,7 +163,7 @@ const STRINGS = {
     'op.pow3': 'pangkat tiga',
     'op.sqrt': 'akar kuadrat',
 
-    'work.dragHint': 'Ketuk kartu angka dan operator untuk membangun hidangan.',
+    'work.dragHint': 'Ketuk pelanggan, lalu bangun angkanya.',
     'work.noCustomer': 'Masak dulu untuk salah satu pelanggan.',
     'work.standBusy': 'Selesaikan atau bersihkan hidangan di stand dulu.',
     'work.notReady': 'Hidingannya belum jadi.',
@@ -175,6 +176,11 @@ const STRINGS = {
     'work.badStep': 'Langkah itu tidak bisa dipakai di sini.',
     'work.keepGoing': 'Bagus, lanjut masak.',
     'work.wrong': 'Itu {value}, mereka mau {target}. Mereka pergi.',
+
+  'confirm.switchTitle': 'Pakai hidangan ini?',
+  'confirm.switchBody': 'Memasak untuk pelanggan yang mau {target} membuang {tiles} kartu yang sudah kamu susun.',
+  'confirm.stay': 'Lanjut masak',
+  'confirm.leave': 'Ganti saja',
 
     'action.serve': 'Sajikan',
     'action.undo': 'Urungkan',

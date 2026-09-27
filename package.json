@@ -11,7 +11,9 @@
     "smoke": "node scripts/smoke-ui.js",
     "smoke:all": "node scripts/smoke-ui.js --all",
     "assets": "python scripts/make-placeholder-assets.py",
-    "check:imports": "node scripts/check-imports.js"
+    "check:imports": "node scripts/check-imports.js",
+    "check:styles": "node scripts/check-styles.js",
+    "check": "node scripts/check-imports.js && node scripts/check-styles.js"
   },
   "engines": {
     "node": ">=20"

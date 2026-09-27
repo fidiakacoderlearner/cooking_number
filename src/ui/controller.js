@@ -15,6 +15,8 @@ let state = null;
 let activeMode = 'easy';
 let timerHandle = null;
 let lastTick = 0;
+/** The customer a pending switch dialog is asking about, if one is open. */
+let pendingOrderId = null;
 
 /* ------------------------------------------------------------------ *
  * Clock
@@ -129,6 +131,7 @@ function showLevelDone() {
 function startLevel(mode, level) {
   stopTimer();
   state = S.createState(mode, level);
+  pendingOrderId = null;
   // Order ids restart at 1 for a new level, so the arrival memory has to go too
   // or the first customer of the new level would not animate.
   view.resetChipArrivals();
@@ -142,6 +145,7 @@ function startLevel(mode, level) {
 function backToMenu() {
   stopTimer();
   state = null;
+  pendingOrderId = null;
   view.showOverlay(null);
   view.showScreen('menu');
 }
@@ -214,7 +218,7 @@ function handleAction(action, dataset) {
 
     case 'select-order':
       if (state) {
-        S.selectOrder(state, Number(dataset.orderId));
+        S.pickCustomer(state, Number(dataset.orderId));
         view.render(state);
       }
       break;
@@ -225,6 +229,25 @@ function handleAction(action, dataset) {
         if (!result.ok) view.feedback(t(result.reason), 'hint');
         else view.feedback(null);
         view.render(state);
+      }
+      break;
+
+    case 'confirm-stay':
+      // The dish is worth more than the switch. Nothing changes but the clock,
+      // which resumes from the moment this was answered.
+      view.showOverlay(null);
+      startTimer();
+      break;
+
+    case 'confirm-leave':
+      if (state && pendingOrderId !== null) {
+        S.clearStand(state);
+        S.pickCustomer(state, pendingOrderId);
+        pendingOrderId = null;
+        view.showOverlay(null);
+        view.feedback(null);
+        view.render(state);
+        startTimer();
       }
       break;
 
@@ -287,11 +310,31 @@ export function init() {
       return;
     }
 
-    // Tapping a chip only marks it. Selecting must never cost the player a
-    // half-built dish (AGENTS.md rule 11).
+    // Tapping a chip commits the stand to that customer. That used to be a tap
+    // followed by a "Cook for him" button, and the button is gone: a phone
+    // playtest asked for fewer elements on screen. Because one tap now costs
+    // more, anything past a couple of tiles asks first.
     const chip = event.target.closest?.('.chip');
     if (chip && state) {
-      S.selectOrder(state, Number(chip.dataset.orderId));
+      const result = S.pickCustomer(state, Number(chip.dataset.orderId));
+      if (result.ok) {
+        view.feedback(null);
+        view.render(state);
+        return;
+      }
+      if (result.reason === 'confirm.switch') {
+        pendingOrderId = Number(chip.dataset.orderId);
+        // The clock stops for the question. Reading a dialog must never be what
+        // makes a customer walk out, and `startTimer` resets the elapsed time so
+        // the paused seconds are not charged to whoever is still waiting.
+        stopTimer();
+        view.showSwitchConfirm({
+          tiles: result.tiles,
+          target: toDisplayString(result.order.puzzle.target),
+        });
+        return;
+      }
+      view.feedback(t(result.reason), 'hint');
       view.render(state);
     }
   });

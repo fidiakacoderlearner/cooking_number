@@ -6,9 +6,13 @@
  * tile can be dropped in the wrong place or fight the page scroll, so every
  * action here is reachable with taps alone.
  *
- * The stand is the only place a dish is built, and a dish only leaves it by
- * being dragged onto a customer chip. Nothing here can destroy work on its own
- * (AGENTS.md rule 11).
+ * Only tiles are draggable, and only onto the stand. Dragging a finished dish
+ * onto a customer was removed after a playtest: the player tapped the customer
+ * instead, and one way to serve is easier to learn than three. Serving is now the
+ * Serve button or a tap on the plate.
+ *
+ * The stand is the only place a dish is built. Nothing here can destroy work on
+ * its own (AGENTS.md rule 11).
  */
 
 let dropCallback = null;
@@ -57,17 +61,15 @@ function tileFromNode(node) {
  * Drop zones
  * ------------------------------------------------------------------ */
 
-const ZONE_SELECTORS = ['[data-workspace]', '[data-drop-zone="serve"]'];
+/** The only place a drag can land: the stand. */
+const ZONE_SELECTORS = ['[data-workspace]'];
 
 function zoneFor(target) {
   if (!(target instanceof Element)) return null;
   return target.closest(ZONE_SELECTORS.join(','));
 }
 
-/**
- * Re-read the zone list. The serve targets are customer chips, which are
- * re-rendered on every state change, so the list cannot be computed once.
- */
+/** Re-read the zone list, which cannot be computed once because the view rebuilds it. */
 function refreshZones() {
   zones = [];
   for (const selector of ZONE_SELECTORS) {
@@ -94,9 +96,7 @@ function clearZoneHighlights() {
 
 function commit(tile, zone) {
   if (!tile || !zone) return;
-  const kind = zone.dataset.dropZone === 'serve' ? 'serve' : 'workspace';
-  const orderId = zone.dataset.orderId ? Number(zone.dataset.orderId) : null;
-  dropCallback?.(tile, kind, orderId);
+  dropCallback?.(tile, 'workspace', null);
   clearZoneHighlights();
 }
 
@@ -122,7 +122,7 @@ function handleRackTap(node) {
 function installDrag() {
   if (typeof window.interact === 'undefined') return false;
 
-  window.interact('.tile, .slot, [data-drop-zone="serve"]').draggable({
+  window.interact('.tile').draggable({
     inertia: false,
     autoScroll: true,
     listeners: {
@@ -199,9 +199,9 @@ export function init(root = document) {
       handleRackTap(tileNode);
       return;
     }
-    // Tapping the plate is the mobile path for serving. Scoped to the plate
-    // itself: customer chips are serve drop zones too, and tapping one must
-    // never be read as "serve what is on the stand".
+    // Tapping the plate is one of the two ways to serve; the Serve button is the
+    // other. Scoped to the plate itself so a tap that lands on the dish value
+    // inside it is still read as a tap on the plate.
     const plate = event.target.closest?.('.counter__plate');
     if (plate) {
       dropCallback?.({ kind: 'serve' }, 'serve', null);

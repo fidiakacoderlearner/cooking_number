@@ -30,11 +30,7 @@ export function cacheDom() {
   dom.queueStrip = el('[data-queue-strip]');
   dom.queueNext = el('[data-queue-next]');
 
-  dom.standHead = el('[data-stand-head]');
-  dom.standPortrait = el('[data-stand-portrait]');
-  dom.standFor = el('[data-stand-for]');
-
-  dom.plate = el('[data-drop-zone="serve"]');
+  dom.plate = el('.counter__plate');
   dom.plateValue = el('[data-plate-value]');
   dom.workspace = el('[data-workspace]');
   dom.workspaceLine = el('[data-workspace-line]');
@@ -50,6 +46,8 @@ export function cacheDom() {
   dom.overlayLevel = el('[data-overlay="level"]');
   dom.overlaySummary = el('[data-overlay-summary]');
   dom.overlayScore = el('[data-overlay-score]');
+  dom.overlayConfirm = el('[data-overlay="confirm"]');
+  dom.overlayConfirmBody = el('[data-confirm-body]');
 }
 
 export function showScreen(name) {
@@ -61,11 +59,29 @@ export function showScreen(name) {
 
 export function showOverlay(name) {
   dom.overlayLevel.hidden = name !== 'level';
+  dom.overlayConfirm.hidden = name !== 'confirm';
   if (name === 'level') {
     // Focus moves into the dialog so a stray Enter cannot re-fire the Serve
     // button that is still focused behind the scrim.
     dom.overlayLevel.querySelector('.btn--primary')?.focus();
   }
+  if (name === 'confirm') {
+    // Focus lands on the safe answer. The dialog exists because tapping a chip
+    // discards a dish, so the default has to be the one that keeps the work.
+    dom.overlayConfirm.querySelector('[data-confirm="stay"]')?.focus();
+  }
+}
+
+/**
+ * Ask before a customer is swapped out from under a half-built dish.
+ *
+ * Only reachable past `FREE_SWITCH_TILES`, where there is real work to lose.
+ */
+export function showSwitchConfirm({ tiles, target }) {
+  if (dom.overlayConfirmBody) {
+    dom.overlayConfirmBody.textContent = t('confirm.switchBody', { tiles, target });
+  }
+  showOverlay('confirm');
 }
 
 let toastTimer = null;
@@ -203,7 +219,6 @@ export function resetChipArrivals() {
 
 export function renderChips(state) {
   const nodes = [];
-  const standEmpty = state.expression.length === 0;
   const onScreen = new Set();
 
   for (const order of state.orders) {
@@ -214,7 +229,6 @@ export function renderChips(state) {
     const chip = document.createElement('div');
     chip.className = 'chip';
     chip.dataset.orderId = String(order.id);
-    chip.dataset.dropZone = 'serve';
     chip.classList.add(`is-${order.status}`);
 
     // The arrival animation is the only thing that must not repeat. Giving it to
@@ -259,27 +273,11 @@ export function renderChips(state) {
 
     chip.append(portrait, targetEl, meter, seconds);
 
-    // Only the stand's own customer can be cooked, so the button is the only
-    // way to commit. It disappears once the stand is loaded, which is what
-    // makes the two-step flow obvious instead of a mode the player has to learn.
-    //
-    // The visible label is just "Cook" because the order is already printed
-    // large on this same chip, and the full phrase was the widest thing in the
-    // queue: at 320px it pushed a full queue of three past the edge of the
-    // screen. The full sentence is still the accessible name, so a screen
-    // reader hears which customer is being cooked for.
-    if (order.status === S.ORDER_STATUS.COOKING) {
-      chip.classList.add('is-locked');
-    } else if (standEmpty) {
-      const cook = document.createElement('button');
-      cook.type = 'button';
-      cook.className = 'chip__cook';
-      cook.dataset.action = 'cook-for';
-      cook.dataset.orderId = String(order.id);
-      cook.textContent = t('customer.cookFor');
-      cook.setAttribute('aria-label', t('customer.cookForTarget', { target }));
-      chip.append(cook);
-    }
+    // Tapping the chip is the whole commitment now: it loads the stand and turns
+    // this customer green, so there is no button to press and nothing else to
+    // read. The green chip is also what says who the stand is cooking for, which
+    // is why the stand used to carry a "Building a dish for..." line as well.
+    if (order.status === S.ORDER_STATUS.COOKING) chip.classList.add('is-cooking');
 
     chip.setAttribute('data-status', order.status);
     nodes.push(chip);
@@ -315,7 +313,6 @@ export function renderStand(state) {
   const total = S.runningTotal(state);
 
   if (!order) {
-    dom.standHead.hidden = true;
     dom.workspaceEmpty.hidden = false;
     dom.workspaceEmpty.textContent = t('stand.pickCustomer');
     dom.plateValue.textContent = '';
@@ -326,17 +323,15 @@ export function renderStand(state) {
     return;
   }
 
-  const target = toDisplayString(order.puzzle.target);
-  dom.standHead.hidden = false;
-  dom.standPortrait.src = customerFor(order.customerIndex);
-  dom.standFor.textContent = t('stand.building', { target });
+  // The stand used to carry a "Building a dish for 7" line and a second copy of
+  // the customer's portrait. The green chip in the queue says both, and a phone
+  // playtest asked for fewer elements on one screen, so both are gone.
   dom.workspaceEmpty.hidden = state.expression.length > 0;
 
   // The final value is the safeguard against a walkout the player could not see
   // coming (AGENTS.md rule 11), so it is never hidden behind a hover state.
   dom.plateValue.textContent = total === null ? '' : `= ${toDisplayString(total)}`;
   dom.plate.classList.toggle('has-dish', dish);
-  dom.plate.classList.toggle('is-ready', dish);
   dom.serveBtn.disabled = !dish;
 
   renderWorkspace(state);
@@ -476,6 +471,7 @@ export const VIEW = {
   cacheDom,
   showScreen,
   showOverlay,
+  showSwitchConfirm,
   render,
   renderHud,
   renderChips,

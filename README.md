@@ -23,6 +23,8 @@ npm run smoke:all  # kelima belas kombinasi mode x level
 npm run inspect    # cetak contoh soal per mode untuk diperiksa manual
 npm run assets     # buat ulang placeholder WebP (butuh Python + Pillow)
 npm run check:imports
+npm run check:styles   # variabel CSS yang dipakai tapi tidak didefinisikan
+npm run check          # keduanya
 ```
 
 `npm run smoke` menerima `--only <mode>` dan `--level <n>` untuk mempersempit
@@ -92,9 +94,9 @@ SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 | Level gagal | Tidak ada. Level selesai saat roster habis, yang beda cuma skor |
 | Skor | Base per pelanggan per mode, plus bonus kecepatan dari sisa kesabaran. Tidak pernah berkurang |
 | Dapur | Satu stand, satu hidangan. Bahan stand milik pelanggan yang sedang dimasak |
-| Alur | Pilih pelanggan → Masak untuk dia → masak → jadi → sajikan |
+| Alur | Ketuk pelanggan untuk masak dia  masak  hidangan jadi  sajikan |
 | Operator | Progresif **per level**, Easy mulai dari `+ -` saja |
-| Input | Drag-and-drop plus tap-to-place, karena drag merepotkan di layar kecil |
+| Input | Ketuk tile, atau seret tile ke stand. Menyajikan lewat tombol Sajian atau ketuk piring |
 | Bahasa | English sebagai default, toggle ID/EN, pilihan tersimpan di `localStorage` |
 | Struktur level | 5 level per mode, roster pelanggan 4/5/6/7/8 |
 
@@ -161,6 +163,9 @@ Hal-hal yang tidak terlihat dari kode, tapi sangat terasa ketika bermain:
   pedagogis dengan mata.
 - `npm run check:imports` — mendeteksi import yang tidak terpakai di `src/core`
   dan `src/ui`.
+- `npm run check:styles` — mendeteksi `var(--nama)` yang tidak pernah
+  didefinisikan. Karena variabel yang hilang hilang diam-diam, sebuah bar
+  kesabaran pernah berubah jadi abu karena itu.
 
 ## Roadmap
 

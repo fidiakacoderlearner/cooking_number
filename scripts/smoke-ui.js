@@ -279,7 +279,11 @@ const READ_RACK = () => {
     })),
     serveEnabled: !document.querySelector('[data-action="serve"]')?.disabled,
     plateValue: document.querySelector('[data-plate-value]')?.textContent ?? '',
-    standHead: document.querySelector('[data-stand-for]')?.textContent ?? '',
+    // The stand no longer carries a "Cooking for 7" line. The green chip is now
+    // the only thing on screen that says who it is cooking for, so that is what
+    // gets read back.
+    cookingFor: [...document.querySelectorAll('.chip.is-cooking .chip__target')]
+      .map((n) => n.textContent)[0] ?? '',
   };
 };
 
@@ -473,12 +477,18 @@ const STAND_AS_PLAN = () => [...document.querySelectorAll('.workspace__line .slo
   return rooted ? `${rooted[1]} \u221a` : trimmed;
 });
 
-/** Press the "Cook for" button on a chip, which loads the stand. */
+/**
+ * Tap a customer chip, which is the whole commitment.
+ *
+ * There used to be a "Cook for him" button after this tap. It is gone, so this is
+ * the only way the stand gets loaded, and the reason the switch question lives in
+ * `state.js` instead of in a second control.
+ */
 async function cookFor(page, orderId) {
   await page.evaluate((id) => {
-    document.querySelector(`.chip[data-order-id="${id}"] .chip__cook`)?.click();
+    document.querySelector(`.chip[data-order-id="${id}"]`)?.click();
   }, String(orderId));
-  await wait(120);
+  await wait(150);
 }
 
 async function clickTile(page, kind, label) {
@@ -650,6 +660,35 @@ async function buildDish(page, chip, { maxSteps, verbose, band, mode, level }) {
   }
   check(built.plateValue.startsWith('='), `${chip.target}: the finished value is readable on the plate ("${built.plateValue}")`, { verbose });
 
+  // The value has to sit on the plate without covering it. An earlier version
+  // filled the plate with an opaque panel, which hid plate.webp entirely and was
+  // reported as the plate image having disappeared.
+  const onPlate = await page.evaluate(() => {
+    const plate = document.querySelector('.counter__plate');
+    const image = document.querySelector('.counter__plate-img');
+    const value = document.querySelector('.counter__plate-value');
+    if (!plate || !image || !value) return { found: false };
+    const p = plate.getBoundingClientRect();
+    const i = image.getBoundingClientRect();
+    const v = value.getBoundingClientRect();
+    return {
+      found: true,
+      imageVisible: i.width > 0 && v.width < i.width,
+      plateAbove: v.top - i.top,
+      plateBelow: (i.top + i.height) - (v.top + v.height),
+      value: Math.round(v.width),
+      image: Math.round(i.width),
+    };
+  });
+  if (onPlate.found) {
+    check(
+      onPlate.imageVisible && onPlate.plateAbove > 0 && onPlate.plateBelow > 0,
+      `${chip.target}: the value sits on the plate and the plate is still visible`
+      + ` (value ${onPlate.value}px over a ${onPlate.image}px plate, ${Math.round(onPlate.plateAbove)}px above and ${Math.round(onPlate.plateBelow)}px below)`,
+      { verbose },
+    );
+  }
+
   const onScreen = await page.evaluate(
     (t, v) => window.__cn.R.equals(window.__cn.parseTile(v.replace('=', '').trim()), window.__cn.parseTile(t)),
     chip.target,
@@ -694,7 +733,7 @@ async function detailedFirstCustomer(page, { maxSteps, band, mode, level }) {
 
   const rack = await page.evaluate(READ_RACK);
   must(rack.values.length > 0, `the stand loaded the customer's ingredients: [${rack.values.join(' ')}]`);
-  must(rack.standHead.includes(chip.target), `the stand says who it is cooking for: "${rack.standHead}"`);
+  must(rack.cookingFor.includes(chip.target), `the customer being cooked for is the one that turned green (chip shows "${rack.cookingFor}", wanted "${chip.target}")`);
   must(
     rack.ops.every((o) => typeof o.ariaLabel === 'string' && o.ariaLabel.length > 0),
     'every operator tile has an accessible name',
@@ -725,6 +764,131 @@ async function detailedFirstCustomer(page, { maxSteps, band, mode, level }) {
 }
 
 /**
+ * Tiles actually on the stand.
+ *
+ * The empty stand renders a dashed placeholder that also carries the `slot`
+ * class, so counting `.slot` counts one extra tile on an empty stand and the
+ * free-switch threshold would read one too high. The selector is spelled out
+ * again inside every `page.evaluate` rather than interpolated, because a closure
+ * over this module does not reach the page.
+ */
+const STAND_TILES = '.workspace__line .slot:not(.slot--dropzone)';
+
+/** Wait until at least `count` customers are on screen. */
+async function waitForChips(page, count, timeout = 60000) {
+  const deadline = Date.now() + timeout;
+  let queue = await page.evaluate(READ_QUEUE);
+  while (Date.now() < deadline && queue.chips.length < count) {
+    await wait(500);
+    queue = await page.evaluate(READ_QUEUE);
+  }
+  return queue;
+}
+
+/**
+ * Switching customer asks before it throws work away.
+ *
+ * Tapping a chip is the whole commitment now, so one tap can cost a dish. Past a
+ * couple of tiles it has to ask, and the clock has to stop while it does:
+ * reading a dialog must never be what makes somebody walk out.
+ */
+async function switchChecks(page) {
+  console.log('\n--- Switching customer asks before it throws work away');
+  await openLevel(page, 'hard', 1);
+  const queue = await waitForChips(page, 2);
+  if (!must(queue.chips.length >= 2, `two customers on screen (${queue.chips.length})`)) {
+    note('   not exercised, so this run cannot vouch for it');
+    return;
+  }
+  const [first, second] = queue.chips;
+
+  await cookFor(page, first.orderId);
+  const rack = await page.evaluate(READ_RACK);
+  await clickTile(page, 'number', rack.values[0]);
+
+  // One tile is still free: there is nothing to lose, and a dialog on every tap
+  // would only teach the player to dismiss it without reading.
+  const small = await page.evaluate(() => document.querySelectorAll('.workspace__line .slot:not(.slot--dropzone)').length);
+  must(small <= 2, `a dish of ${small} tile(s) is under the free-switch threshold`);
+  await cookFor(page, second.orderId);
+  const free = await page.evaluate(() => ({
+    confirm: !document.querySelector('[data-overlay="confirm"]').hidden,
+    cooking: document.querySelector('.chip.is-cooking .chip__target')?.textContent ?? '',
+  }));
+  must(!free.confirm, 'no question is asked over a tile or two');
+  must(free.cooking === second.target, `the stand simply moved to the other customer (${free.cooking})`);
+
+  // Now build something real and try again.
+  const busy = (await page.evaluate(READ_QUEUE)).chips.find((c) => c.orderId !== second.orderId);
+  if (!must(busy !== undefined, 'a third customer turns up for the real test')) return;
+
+  const rackNow = await page.evaluate(READ_RACK);
+  await clickTile(page, 'number', rackNow.values[0]);
+  await clickTile(page, 'operator', '\u00d7');
+  await clickTile(page, 'number', rackNow.values[1] ?? rackNow.values[0]);
+  const built = await page.evaluate(() => document.querySelectorAll('.workspace__line .slot:not(.slot--dropzone)').length);
+  must(built > 2, `the stand holds ${built} tiles, past the threshold`);
+
+  const secondsBefore = await page.evaluate(() => Math.max(
+    ...[...document.querySelectorAll('.chip__seconds')].map((n) => Number(n.textContent)),
+  ));
+  await cookFor(page, busy.orderId);
+
+  const asked = await page.evaluate(() => ({
+    confirm: !document.querySelector('[data-overlay="confirm"]').hidden,
+    body: document.querySelector('[data-confirm-body]')?.textContent ?? '',
+    focused: document.activeElement?.dataset?.confirm ?? '',
+    stand: document.querySelectorAll('.workspace__line .slot:not(.slot--dropzone)').length,
+    cooking: document.querySelector('.chip.is-cooking .chip__target')?.textContent ?? '',
+  }));
+  must(asked.confirm, 'switching with a real dish on the stand asks first');
+  must(
+    asked.stand === built && asked.cooking === second.target,
+    `the dish and the customer survive the question (${asked.stand} tiles, cooking for "${asked.cooking}")`,
+  );
+  must(asked.body.length > 0, `the question actually says something ("${asked.body}")`);
+  must(asked.focused === 'stay', `the safe answer has the keyboard focus (got "${asked.focused}")`);
+
+  // The clock has to be stopped, and whoever is still waiting must be no closer
+  // to walking out than before the question was opened.
+  await wait(2500);
+  const secondsAfter = await page.evaluate(() => Math.max(
+    ...[...document.querySelectorAll('.chip__seconds')].map((n) => Number(n.textContent)),
+  ));
+  must(
+    secondsAfter >= secondsBefore - 1,
+    `nobody's patience drains while the question is open (${secondsBefore}s before, ${secondsAfter}s after)`,
+  );
+
+  await page.evaluate(() => document.querySelector('[data-confirm="stay"]')?.click());
+  await wait(250);
+  const stayed = await page.evaluate(() => ({
+    confirm: !document.querySelector('[data-overlay="confirm"]').hidden,
+    cooking: document.querySelector('.chip.is-cooking .chip__target')?.textContent ?? '',
+    stand: document.querySelectorAll('.workspace__line .slot:not(.slot--dropzone)').length,
+  }));
+  must(!stayed.confirm, 'the question closes');
+  must(
+    stayed.cooking === second.target && stayed.stand === built,
+    'answering "keep cooking" changes nothing at all',
+  );
+
+  // The clock has to be running again afterwards, or the rest of the level
+  // would quietly stop.
+  const secondsStart = await page.evaluate(() => Math.max(
+    ...[...document.querySelectorAll('.chip__seconds')].map((n) => Number(n.textContent)),
+  ));
+  await wait(2500);
+  const secondsRunning = await page.evaluate(() => Math.max(
+    ...[...document.querySelectorAll('.chip__seconds')].map((n) => Number(n.textContent)),
+  ));
+  must(
+    secondsRunning < secondsStart,
+    `the clock runs again after the question (${secondsStart}s then ${secondsRunning}s)`,
+  );
+}
+
+/**
  * Drag and drop, which is the half of the input model the rest of this file
  * never touches.
  *
@@ -739,8 +903,7 @@ async function dragChecks(page) {
   const queue = await waitForChip(page);
   if (!must(queue !== null, 'a customer walks in before the drag test')) return;
   const chip = queue.chips[0];
-  await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"] .chip__cook`)?.click(), chip.orderId);
-  await wait(150);
+  await cookFor(page, chip.orderId);
 
   const band = getBand('easy', 1);
   const rack = await page.evaluate(READ_RACK);
@@ -766,28 +929,30 @@ async function dragChecks(page) {
   );
   must(built.serveEnabled, `a dragged chain can be served (plate "${built.plate}")`);
 
+  // Dragging the plate onto the customer is gone. A playtest used the Serve
+  // button every time and reported the drag as needless, so serving is now the
+  // button or a tap on the plate, and the drag path only carries tiles.
   const before = await page.evaluate(READ_HUD);
-  must(
-    await dragOnto(page, { selector: '.counter__plate' }, { selector: `.chip[data-order-id="${chip.orderId}"]` }),
-    'the plate can be dropped on the customer',
-  );
+  await page.evaluate(() => document.querySelector('.counter__plate')?.click());
+  await wait(200);
   const after = await page.evaluate(READ_HUD);
   must(
     after.score > before.score,
-    `dragging the plate onto the customer serves the dish (${before.score} -> ${after.score})`,
+    `tapping the plate serves the dish (${before.score} -> ${after.score})`,
   );
   const queueAfter = await page.evaluate(READ_QUEUE);
   must(
     !queueAfter.chips.some((c) => c.orderId === chip.orderId),
-    'the served customer leaves after a drag-served dish',
+    'the served customer leaves after a tap-served dish',
   );
+  const plateStillThere = await page.evaluate(() => Boolean(document.querySelector('.counter__plate')));
+  must(plateStillThere, 'the plate survives being served from');
 
   console.log('\n--- Drag a square onto the stand (Hard)');
   await openLevel(page, 'hard', 1);
   const hardQueue = await waitForChip(page);
   if (!must(hardQueue !== null, 'a customer walks in for the Hard drag test')) return;
-  await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"] .chip__cook`)?.click(), hardQueue.chips[0].orderId);
-  await wait(150);
+  await cookFor(page, hardQueue.chips[0].orderId);
 
   const hardRack = await page.evaluate(READ_RACK);
   const square = hardRack.ops.find((o) => o.kind === 'unary');
@@ -862,8 +1027,7 @@ async function dragChecks(page) {
   await openLevel(page, 'hard', 3);
   const rootQueue = await waitForChip(page);
   if (!must(rootQueue !== null, 'a customer walks in for the root test')) return;
-  await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"] .chip__cook`)?.click(), rootQueue.chips[0].orderId);
-  await wait(200);
+  await cookFor(page, rootQueue.chips[0].orderId);
 
   const rootRack = await page.evaluate(READ_RACK);
   const rootSign = rootRack.ops.find((o) => o.kind === 'unary' && o.label === '\u221a');
@@ -1049,27 +1213,29 @@ async function openGamePage(browser, sink) {
 }
 
 /**
- * Play one level, and build a new page and play it again if the browser dies.
+ * Run a section, and run it again on a new page if the browser dies.
  *
  * A long run keeps one tab alive for the best part of an hour and on this machine
- * the renderer occasionally dies mid-level: a detached frame, a destroyed
+ * the renderer occasionally dies part-way through: a detached frame, a destroyed
  * execution context, a closed target. None of those say anything about the game,
- * so a level that dies that way is retried once on a fresh page. A real game
+ * so a section that dies that way is retried once on a fresh page. A real game
  * failure never looks like this, so nothing is hidden by the retry.
  *
- * Returns the page to keep using, because a recovery replaces it.
+ * Recovery has to build a new page rather than reload the old one: a detached
+ * frame is gone for good, and reloading it fails with the very error that caused
+ * the retry. Returns the page to keep using, because a recovery replaces it.
  */
-async function playOneLevel(page, combo, browser, sink) {
+async function withRecovery(page, browser, sink, label, section) {
   try {
-    return { page, result: await runOneLevel(page, combo) };
+    return { page, result: await section(page) };
   } catch (error) {
     if (!(error instanceof BrowserDied)) guardDeath(error);
-    note(`${combo.mode} L${combo.level}: the browser dropped the page (${error.message}), retrying on a new page`);
+    note(`${label}: the browser dropped the page (${error.message}), retrying on a new page`);
     await page.close().catch(() => {});
     const fresh = await openGamePage(browser, sink);
     await fresh.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle0' });
     await fresh.evaluate(PAGE_HELPERS);
-    return { page: fresh, result: await runOneLevel(fresh, combo) };
+    return { page: fresh, result: await section(fresh) };
   }
 }
 
@@ -1176,12 +1342,26 @@ async function main() {
     must(lockedBefore === 4, `only level 1 is unlocked at first (${lockedBefore} locked)`);
 
     for (const combo of combos) {
-      // A recovery hands back a replacement page, so the page has to be taken
-      // from the result rather than captured.
-      ({ page } = await playOneLevel(page, combo, browser, sink));
+      // A fresh tab per level rather than a reload. The renderer on this machine
+      // tends to die after a long-lived tab, and a dead tab takes the whole run
+      // down with it; one page load per level is a second and buys back a gate
+      // that can be trusted over fifteen levels.
+      await page.close().catch(() => {});
+      page = await openGamePage(browser, sink);
+      await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle0' });
+      await page.evaluate(PAGE_HELPERS);
+
+      const label = `${combo.mode} L${combo.level}`;
+      ({ page } = await withRecovery(page, browser, sink, label, (p) => runOneLevel(p, combo)));
     }
 
-    await dragChecks(page);
+    for (const [name, section] of [['switch checks', switchChecks], ['drag checks', dragChecks]]) {
+      await page.close().catch(() => {});
+      page = await openGamePage(browser, sink);
+      await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle0' });
+      await page.evaluate(PAGE_HELPERS);
+      ({ page } = await withRecovery(page, browser, sink, name, section));
+    }
 
     console.log('\n--- Language toggle');
     await backToMenu(page);
@@ -1206,7 +1386,7 @@ async function main() {
     // reminder that there is no language switch inside a level.
     await openLevel(page, 'medium', 1);
     await waitForChip(page);
-    await page.evaluate(() => document.querySelector('.chip .chip__cook')?.click());
+    await page.evaluate(() => document.querySelector('.chip')?.click());
     await wait(200);
     const englishOps = await page.evaluate(READ_RACK);
     await toggleLanguage(page);
@@ -1261,7 +1441,7 @@ async function main() {
     await wait(300);
     await waitForChip(page);
     // Load the stand so the measurement covers a real rack and not an empty one.
-    await page.evaluate(() => document.querySelector('.chip .chip__cook')?.click());
+    await page.evaluate(() => document.querySelector('.chip')?.click());
     await wait(200);
     // isMobile/hasTouch are kept deliberately. Puppeteer reloads the page when
     // those change, which would just prove the app boots to the menu again. The
@@ -1338,3 +1518,4 @@ async function main() {
 }
 
 main();
+

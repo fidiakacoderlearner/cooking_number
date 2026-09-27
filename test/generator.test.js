@@ -355,6 +355,36 @@ test('Medium introduces fractions but keeps them tidy', () => {
   assert.ok(sawFraction, 'Medium is supposed to introduce fractions (PRD 5.1)');
 });
 
+test('a harder mode never carries more fractions per tile than an easier one (regression)', () => {
+  // A playtest reported fractions as overwhelming, that Medium level 5 was only
+  // half finished, and that the top of Medium felt harder than the bottom of
+  // Hard. The cause was `fractionChance` sitting above Hard's, so the mode
+  // mapped to grade 8 dealt more fractions than the one mapped to grade 9. The
+  // operator ladder already ordered the modes; the material has to agree.
+  const fractionShare = (mode, level, runs = 300) => {
+    const rng = seeded(9000 + level);
+    let fractions = 0;
+    let tiles = 0;
+    for (let i = 0; i < runs; i += 1) {
+      for (const value of generatePuzzle(mode, level, { rng }).ingredients) {
+        tiles += 1;
+        if (!R.isInteger(value)) fractions += 1;
+      }
+    }
+    return fractions / tiles;
+  };
+
+  for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
+    const medium = fractionShare('medium', level);
+    const hard = fractionShare('hard', level);
+    assert.ok(
+      medium <= hard + 0.02,
+      `medium level ${level} deals ${(medium * 100).toFixed(1)}% fractions per tile`
+      + ` against hard's ${(hard * 100).toFixed(1)}%`,
+    );
+  }
+});
+
 test('Hard only roots perfect squares and raises to small integer powers', () => {
   const rng = seeded(3333);
   let sawSqrt = 0;

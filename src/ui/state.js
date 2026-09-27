@@ -34,8 +34,10 @@ export const PHASES = {
  * Customer states, in the order a customer moves through them (PRD 5.8).
  *
  * `COOKING` is exclusive: only one customer can hold it, because there is one
- * stand and one dish. A customer that is merely `SELECTED` has cost the player
- * nothing, so moving away from one must never destroy work.
+ * stand and one dish. Tapping a chip commits to that customer directly, so the UI
+ * no longer has a separate "selected" step; `SELECTED` is kept because the rest
+ * of the state machine still tolerates it and removing it would touch every
+ * status check for no gain. Nothing sets it any more.
  */
 export const ORDER_STATUS = {
   WAITING: 'waiting',
@@ -125,23 +127,6 @@ export function cookingOrder(state) {
 }
 
 /**
- * Picking a customer is always free. It only marks the chip, so a stray tap can
- * never cost the player a half-built dish (AGENTS.md rule 11).
- */
-export function selectOrder(state, orderId) {
-  if (state.phase !== PHASES.PLAYING) return null;
-  const order = findOrder(state, orderId);
-  if (!order) return null;
-  if (order.status !== ORDER_STATUS.WAITING && order.status !== ORDER_STATUS.SELECTED) return null;
-  for (const other of state.orders) {
-    if (other.status === ORDER_STATUS.SELECTED) other.status = ORDER_STATUS.WAITING;
-  }
-  order.status = ORDER_STATUS.SELECTED;
-  state.selectedOrderId = orderId;
-  return order;
-}
-
-/**
  * Commit the stand to a customer and load that customer's ingredients.
  *
  * Refused while another dish is already on the stand, so the player has to serve
@@ -158,13 +143,58 @@ export function startCooking(state, orderId) {
     return { ok: false, reason: 'work.badStep' };
   }
 
+  // Whichever customer the stand used to be cooking for is just a waiter again.
+  // Only demoting SELECTED was enough while reaching this needed a button that
+  // refused a busy stand, and it left two customers flagged as being cooked for
+  // the moment a tap could switch them directly.
   for (const other of state.orders) {
-    if (other.status === ORDER_STATUS.SELECTED) other.status = ORDER_STATUS.WAITING;
+    if (other.id === order.id) continue;
+    if (other.status === ORDER_STATUS.SELECTED || other.status === ORDER_STATUS.COOKING) {
+      other.status = ORDER_STATUS.WAITING;
+    }
   }
   order.status = ORDER_STATUS.COOKING;
   state.cookingOrderId = order.id;
   state.selectedOrderId = null;
   return { ok: true, order };
+}
+
+/**
+ * How much of a dish may be thrown away by a single tap without asking.
+ *
+ * Tapping a customer chip is the whole commitment now, so the guard that used to
+ * be a separate "Cook for him" button has to live here. Two tiles is the point
+ * where the work is still nothing, and asking about every early tap would train
+ * the player to dismiss the dialog without reading it.
+ */
+export const FREE_SWITCH_TILES = 2;
+
+/**
+ * Tap a customer chip: that is the whole commitment.
+ *
+ * The old flow asked for two things, a tap and then a button, so the button is
+ * gone and the chip carries the weight. That makes a mis-tap more expensive than
+ * it used to be, so anything past `FREE_SWITCH_TILES` of a built dish is refused
+ * with `confirm.switch` and the caller has to ask before the work is cleared.
+ * Clearing on the free path is deliberate: below the threshold the player has
+ * barely started, and holding the stand hostage would make the queue feel stuck.
+ */
+export function pickCustomer(state, orderId) {
+  if (state.phase !== PHASES.PLAYING) return { ok: false, reason: 'work.badStep' };
+  const order = findOrder(state, orderId);
+  if (!order) return { ok: false, reason: 'work.badStep' };
+  if (order.status === ORDER_STATUS.COOKING) return { ok: true, order };
+  if (order.status !== ORDER_STATUS.WAITING && order.status !== ORDER_STATUS.SELECTED) {
+    return { ok: false, reason: 'work.badStep' };
+  }
+
+  const switching = state.cookingOrderId !== null && state.cookingOrderId !== order.id;
+  if (switching && state.expression.length > FREE_SWITCH_TILES) {
+    return { ok: false, reason: 'confirm.switch', order, tiles: state.expression.length };
+  }
+  if (switching) clearStand(state);
+
+  return startCooking(state, orderId);
 }
 
 /** Empty the stand without serving anyone. */
@@ -539,7 +569,7 @@ export function resetLevel(state, options = {}) {
 
 export const STATE = {
   createState,
-  selectOrder,
+  pickCustomer,
   startCooking,
   clearStand,
   pushTile,

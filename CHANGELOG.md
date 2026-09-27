@@ -41,6 +41,19 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Nama game: Number Kitchen menjadi Cooking Number.**
 - Tagline: "Cook the number the customer ordered." menjadi
   "Cook the number. Serve the customer.".
+- **Menekan chip pelanggan adalah satu-satunya komitmen.** Tombol "Masak untuk
+  dia" dihapus, dan teks "Building a dish for 7" beserta salinan potret di stand
+  ikut hilang karena chip yang hijau sudah keduanya. Lima langkah jadi empat.
+  Playtest meminta elemen lebih sedikit di satu layar.
+- **Pindah pelanggan bertanya dulu kalau hidangannya sudah jadi.** Di bawah dua
+  kartu, pindah bebas. Di atas itu muncul dialog karena satu ketukan sekarang
+  bisa menghapus pekerjaan. **Jam berhenti selama dialog terbuka**, jadi membaca
+  dialog tidak pernah menjadi alasan seorang pelanggan pergi, dan dibutuhkan
+  supaya konfirmasi ini memenuhi aturan 11 alih-alih melanggarnya. Fokus
+  keyboard masuk ke jawaban yang aman.
+- **Menyeret hidangan ke pelanggan dihapus.** Playtest selalu memakai tombol
+  Sajian dan menyebut drag tidak perlu; satu cara menyajikan lebih mudah dipelajari
+  dari tiga. Tile masih bisa diseret ke stand.
 
 ### Removed
 - `TIMER_SECONDS`, `LIVES_PER_LEVEL`, `ORDERS_PER_LEVEL`, `ordersForLevel()`
@@ -53,6 +66,31 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **Gambar piring tertutup nilai.** Nilai akhir diberi `inset: 0` dengan latar
+  hijau pekat, jadi ia menutupi `plate.webp` sepanjang 128px. Playtest melaporkannya
+  sebagai "gambar piringnya kok hilang". Nilainya kini jadi pita di tengah piring
+  dan ukurannya mengikuti isinya, jadi piring tetap terlihat di atas dan bawahnya
+  apa pun nilainya. Smoke test mengukur ulang jarak nilai terhadap gambar piring,
+  karena regresi ini berasal dari perbaikan sebelumnya.
+- **Bar kesabaran jadi abu, bukan kuning.** `var(--butter-deep)` dipakai di dua
+  tempat tapi tidak pernah didefinisikan; yang ada `butter-dark`. Properti yang
+  memakai variabel tak dikenal hilang begitu saja, jadi fill jadi transparan dan
+  yang terlihat adalah jalur abu. Salah satunya sudah rusak sejak awal: garis chip
+  yang dipilih tidak pernah kuning.
+- **Dua pelanggan sekaligus berstatus "dimasak".** `startCooking` hanya
+  menurunkan status `SELECTED`, tidak pernah status `COOKING` sebelumnya. Itu
+  aman selama stand harus dikosongkan dulu untuk berpindah, dan tidak lagi
+  begitu satu ketukan bisa langsung memindah. Pelanggan yang ditinggalkan tetap
+  hijau, jadi layar menunjukkan dua pelanggan yang sedang dimasak.
+- **Medium lebih padat pecahan dari Hard.** `fractionChance` Medium 0.40 di atas
+  Hard 0.30, jadi mode untuk kelas 8 memberi lebih banyak pecahan daripada mode
+  untuk kelas 9. Playtest melaporkan pecahan membuat kewalahan, level 5 Medium
+  hanya setengah selesai, dan puncak Medium terasa lebih sulit daripada dasar
+  Hard. Sekarang 0.26, diukur ulang: 0.19-0.24 per kartu di Medium melawan
+  0.18-0.24 di Hard, dan pecahan per soal justru lebih banyak di Hard karena
+  rantainya lebih panjang. Test regresi menahan urutan itu.
+- **Kelas `is-ready` di piring tidak pernah punya CSS.** Diterapkan ke DOM tanpa
+  aturan yang memakainya.
 - **Drag tidak pernah terlihat bergerak, dan drop-nya diam-diam gagal.** Dua
   bug yang saling menutupi. `drag.js` menulis `translate(dx / 2, dy / 2)` ke
   `transform` setiap event, padahal `event.dx` adalah delta sejak event
@@ -202,6 +240,13 @@ pemain.
 
 ### Added
 
+- **`scripts/check-styles.js`** — gagal kalau ada `var(--nama)` tanpa definisi.
+  Bug bar jadi abu tidak bisa pertahanan apa pun karena tak ada yang membaca
+  CSS. Checker ini menemukan rujukan kedua yang saya lewatkan. Terpasang sebagai
+  `npm run check:styles` dan `npm run check`.
+- Test untuk aturan baru: satu ketukan memuat stand, pekerjaan di atas dua kartu
+  tidak hilang tanpa bertanya, perpindahan kecil tetap bebas, dan hanya satu
+  pelanggan yang boleh berstatus dimasak.
 - **Pesan skor menyebutkan kecepatannya.** Poin untuk pelanggan sudah memuat
   bonus kecepatan sejak awal, tapi dua skor berbeda terbaca sebagai kejadian yang
   sama, jadi pemain tidak tahu bahwa menjawab cepat itu yang dibayar oleh sisa
@@ -214,9 +259,11 @@ pemain.
   chip pelanggan dan memastikan skor naik. Gerbang 44x44px di `AGENTS.md` juga
   ditegakkan di dua lebar layar pada seluruh elemen yang bisa disentuh, bukan
   hanya tinggi di bawah 32px pada sebagian elemen.
-- **Pemulihan smoke test benar-benar memulihkan.** Level yang mati karena browser
-  hilang pagenya dicoba ulang di halaman baru, bukan di reload, karena frame
-  yang sudah lepas tidak bisa dipulihkan.
+- **Pemulihan smoke test memakai tab baru, dan tiap level dapat tab sendiri.**
+  Satu tab yang hidup lama-lama di mesin ini kadang membuat renderer-nya mati, dan
+  frame yang sudah lepas tidak bisa di-reload: reload-nya gagal dengan error yang
+  justru memicu percobaan ulang. Sekarang tiap level dan tiap section berjalan di
+  tab yang baru dibuat, jadi gerbang bisa dipercaya melewati lima belas level.
 - **`test/assets.test.js`** — palet operator rak diuji sebagai kontrak: rak harus
   menawarkan persis operator yang diizinkan band, tangga tidak boleh kehilangan
   operator antar level, pratinjau menu harus menampilkan set terlebar, dan
