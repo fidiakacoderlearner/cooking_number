@@ -6,8 +6,10 @@ matematika sampai angkanya cocok, lalu saji.
 
 Rujukan kebutuhan lengkap ada di [PRD.md](PRD.md).
 
-> Status: **Fase 2.5 sedang dikerjakan** — logika inti dan generator soal selesai;
-> UI sedang diubah ke model pelanggan berdatangan berkala.
+> Status: **Fase 3 hampir selesai** — logika inti, generator soal, dan UI
+> multi-pelanggan sudah selesai dan terverifikasi otomatis di kelima belas
+> kombinasi mode x level. Sisa pekerjaan yang menentukan adalah playtest di HP
+> asli untuk mengkalibrasi angka spawner dan kesabaran.
 > Lihat [Roadmap](#roadmap) untuk apa yang belum selesai.
 
 ## Cara menjalankan
@@ -15,11 +17,21 @@ Rujukan kebutuhan lengkap ada di [PRD.md](PRD.md).
 Butuh Node.js 20+ (hanya untuk test runner, bukan untuk build).
 
 ```bash
-npm test           # unit test core
-npm run smoke      # jalankan game sungguhan di Chrome dan verifikasi alur-ui
+npm test           # unit test core dan UI
+npm run smoke      # main Easy L1, Medium L1, Hard L1, dan Hard L3 di Chrome sungguhan
+npm run smoke:all  # kelima belas kombinasi mode x level
 npm run inspect    # cetak contoh soal per mode untuk diperiksa manual
 npm run assets     # buat ulang placeholder WebP (butuh Python + Pillow)
 npm run check:imports
+```
+
+`npm run smoke` menerima `--only <mode>` dan `--level <n>` untuk mempersempit
+run, misal `npm run smoke -- --only easy` untuk loop cepat sekitar 90 detik.
+Butuh `puppeteer-core` dan Chrome/Edge yang sudah terpasang:
+
+```bash
+npm install --no-save puppeteer-core@23
+npm run smoke
 ```
 
 Untuk memainkan, sediakan statis saja tanpa build step:
@@ -27,14 +39,11 @@ Untuk memainkan, sediakan statis saja tanpa build step:
 ```bash
 python -m http.server 8099
 # buka http://127.0.0.1:8099/
+# dari HP di WiFi yang sama: python -m http.server 8099 --bind 0.0.0.0
 ```
 
-`npm run smoke` membutuhkan `puppeteer-core` dan Chrome/Edge yang sudah terpasang:
-
-```bash
-npm install --no-save puppeteer-core@23
-npm run smoke
-```
+Harus lewat HTTP, bukan `file://`, karena modul ES akan diblokir CORS. Protokol
+run di perangkat asli ada di `PLAYTEST.md`.
 
 ## Struktur
 
@@ -50,7 +59,8 @@ src/core/               logika murni, tanpa DOM
 src/ui/                 view, state, controller
   i18n.js               semua string UI, default English
   assets.js             path aset + definisi operator
-  state.js              state permainan dan formula skor
+  state.js              state permainan, ekspresi, dan formula skor
+  progress.js           progres level di localStorage, tanpa DOM
   view.js               seluruh render DOM
   drag.js               interact.js + tap-to-place
   controller.js         loop permainan, timer, transisi
@@ -59,6 +69,7 @@ assets/placeholder/     WebP datar, siap diganti aset tim
 vendor/                 interact.js 1.10.27
 scripts/                alat development
 test/                   unit test (node:test, tanpa dependency)
+PLAYTEST.md             formulir playtest HP + protocol menjalankan game di HP
 ```
 
 ## Keputusan desain yang sudah dikunci
@@ -135,11 +146,16 @@ Hal-hal yang tidak terlihat dari kode, tapi sangat terasa ketika bermain:
 
 ## Verifikasi
 
-- `npm test` — test core, termasuk stress test 10.000 soal per mode.
-- `npm run smoke` — menjalankan game di Chrome sungguhan, menyajikan beberapa
-  pelanggan sekaligus hanya dari yang terlihat di layar, lalu memeriksa skor,
-  walkout, akhir level, dan toggle bahasa. Kegagalan apa pun pada alur-ui
-  tertangkap di sini.
+- `npm test` — test core dan UI, termasuk stress test 10.000 soal per mode dan
+  pemutaran ulang solusi rahasia Medium/Hard melalui `pushTile`, yang memaksa
+  stand menepati jaminan solvability yang sama dengan core.
+- `npm run smoke` — menjalankan game di Chrome sungguhan dan **memainkannya
+  sampai overlay level-complete muncul** untuk Easy L1, Medium L1, Hard L1, dan
+  Hard L3. Solver di dalamnya membaca target dari chip dan bahan dari rak, jadi
+  level yang tidak bisa diselesaikan hanya dari yang terlihat di layar akan
+  gagal di sini, bukan di tangan pemain.
+- `npm run smoke:all` — hal yang sama untuk kelima belas kombinasi mode x
+  level. Butuh sekitar 25 menit nyata, jadi bukan quality gate setiap commit.
 - `npm run inspect` — mencetak contoh soal untuk diperiksa ulang secara
   pedagogis dengan mata.
 - `npm run check:imports` — mendeteksi import yang tidak terpakai di `src/core`
@@ -149,12 +165,14 @@ Hal-hal yang tidak terlihat dari kode, tapi sangat terasa ketika bermain:
 
 - [x] **Fase 1** — logika inti, generator, unit test
 - [x] **Fase 2** — UI mobile-first dengan satu pelanggan satu pesanan
-- [~] **Fase 2.5** — redesign ke pelanggan berdatangan berkala
-- [ ] **Fase 3** — polish, kalibrasi spawner dan kesabaran di HP asli
-- [ ] **Fase 4** — playtesting akhir, materi submission
+- [x] **Fase 2.5** — redesign ke pelanggan berdatangan berkala
+- [~] **Fase 3** — polish dan kalibrasi spawner dan kesabaran di HP asli
+- [ ] **Fase 4** — materi submission
 
-Masih terbuka: rubrik lomba, aset visual final dari tim, hasil kalibrasi
-layar di perangkat asli.
+Rencana kerja yang sedang berjalan ada di `PLAN.md`. Masih terbuka: rubrik
+lomba, aset visual final dari tim, hasil playtest di perangkat asli, dan
+keputusan apakah roster pelanggan per mode mengikuti PRD §5.7 atau satu tangga
+bersama.
 
 ## Catatan teknis
 
@@ -168,5 +186,5 @@ layar di perangkat asli.
 - `secretRecipe` hanya untuk pembuktian di test. **Jangan** kirim ke pemain.
 - Angka spawner dan kesabaran di `src/core/difficulty.js` adalah titik awal,
   bukan angka final. Semuanya bisa diubah dari satu file tanpa menyentuh
-  logika permainan.
+  logika permainan, dan protocol pengukurannya ada di `PLAYTEST.md`.
 - `.opencode/` diabaikan git karena berisi catatan internal.

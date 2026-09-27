@@ -4,8 +4,17 @@
  * time, that a dish can be built using only what is on screen, and that
  * serving works.
  *
- *   npm run smoke
+ *   npm run smoke                 # easy L1, medium L1, hard L1, hard L3
+ *   npm run smoke -- --only easy  # the quick loop, about 90 seconds
+ *   npm run smoke -- --all        # all 15 mode x level combinations
+ *   npm run smoke -- --level 3    # the default set, level 3 only
  *   npm install --no-save puppeteer-core@23
+ *
+ * Every level is played from the menu with nothing but what a player can see and
+ * tap, and the level only counts as a pass when the whole roster is served and
+ * the level-complete overlay opens. That is why Medium and Hard are in the
+ * default set rather than a follow-up: the maths is proven, the *UI path* is
+ * not, and the UI path is where the unsolved bugs live.
  *
  * The solver deliberately never touches `secretRecipe`. It reads the target off
  * the customer chip and the tiles off the rack, so a puzzle that only makes
@@ -17,19 +26,24 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
+import { customersForLevel, getBand } from '../src/core/difficulty.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const PORT = 8099;
 
+/** A level may only take as long as the real thing would, plus slack. */
+const LEVEL_DEADLINE_MS = 8 * 60 * 1000;
+
 const CHROME_PATHS = [
+  process.env.CHROME_PATH,
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   '/usr/bin/google-chrome',
   '/usr/bin/chromium',
-];
+].filter(Boolean);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -41,6 +55,20 @@ const MIME = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
 };
+
+/**
+ * The levels the default run plays.
+ *
+ * Hard L3 is in the set because it is the first level that unlocks `sqrt`, and
+ * because the generator starts emitting two unary steps in a row there. A
+ * default run that stopped at Hard L1 would never touch either.
+ */
+const DEFAULT_COMBOS = Object.freeze([
+  { mode: 'easy', level: 1, detailed: true },
+  { mode: 'medium', level: 1 },
+  { mode: 'hard', level: 1 },
+  { mode: 'hard', level: 3 },
+]);
 
 let failures = 0;
 let notes = 0;
@@ -63,6 +91,18 @@ function note(message) {
 function must(condition, message) {
   if (condition) ok(message);
   else fail(message);
+  return Boolean(condition);
+}
+
+/**
+ * Same verdict, but only successes are printed when the run is not verbose.
+ *
+ * The per-customer checks run once per customer per level; printing every
+ * success would bury the failures. A failure is always printed.
+ */
+function check(condition, message, { verbose }) {
+  if (verbose) return must(condition, message);
+  if (!condition) fail(message);
   return Boolean(condition);
 }
 
@@ -135,36 +175,53 @@ const PAGE_HELPERS = `
     /**
      * Search for a chain reaching the target using only the tiles on the rack.
      *
-     * The search mirrors the stand's own rule: a chain starts with a value, then
-     * alternates operators with values, and ends on a value. Anything looser
-     * would hand the UI a plan it rejects, which reads as a game bug rather than
-     * a broken solver.
+     * The search mirrors how the stand evaluates: a chain starts with a value,
+     * then alternates operators with values and may take unary steps, and ends
+     * on a value. A unary step is tried wherever the running total allows it,
+     * which is deliberately more permissive than the stand's own guard rails,
+     * because a route the game refuses to accept is a bug worth failing on.
+     *
+     * \`maxSteps\` comes from the level's own band, so Hard is searched deeper
+     * than Easy rather than sharing one number that happens to fit one of them.
+     *
+     * Dead branches are memoised on (used mask, depth, running value). Hard
+     * offers seven tiles and three unary operators, so the un-memoised search
+     * reaches hundreds of thousands of nodes on a single dish.
      */
     function solve(targetLabel, valueLabels, opSpecs, maxSteps) {
       const target = parseTile(targetLabel);
       const values = valueLabels.map(parseTile);
-      const used = new Array(values.length).fill(false);
+      const n = values.length;
       const binary = opSpecs.filter((o) => o.arity === 'binary');
       const unary = opSpecs.filter((o) => o.arity === 'unary');
+      const dead = new Set();
+      let mask = 0;
 
       function walk(current, depth, path) {
         if (depth > 0 && R.equals(current, target)) return path;
         if (depth >= maxSteps) return null;
+        const key = mask + '|' + depth + '|' + R.toKey(current);
+        if (dead.has(key)) return null;
+        const found = search(current, depth, path);
+        if (!found) dead.add(key);
+        return found;
+      }
 
+      function search(current, depth, path) {
         for (const op of binary) {
-          for (let i = 0; i < values.length; i += 1) {
-            if (used[i]) continue;
-            used[i] = true;
+          for (let i = 0; i < n; i += 1) {
+            if (mask & (1 << i)) continue;
+            mask |= 1 << i;
             const next = applyStep(current, { key: op.key, operand: values[i] });
-            if (next && !isZero(next)) {
-              const found = walk(
-                next,
-                depth + 1,
-                path.concat([{ kind: 'operator', label: op.label }, { kind: 'number', label: valueLabels[i] }]),
-              );
-              if (found) return found;
-            }
-            used[i] = false;
+            const found = next && !isZero(next)
+              ? walk(
+                  next,
+                  depth + 1,
+                  path.concat([{ kind: 'operator', label: op.label }, { kind: 'number', label: valueLabels[i] }]),
+                )
+              : null;
+            mask &= ~(1 << i);
+            if (found) return found;
           }
         }
 
@@ -179,10 +236,9 @@ const PAGE_HELPERS = `
         return null;
       }
 
-      for (let i = 0; i < values.length; i += 1) {
-        used[i] = true;
+      for (let i = 0; i < n; i += 1) {
+        mask = 1 << i;
         const found = walk(values[i], 0, [{ kind: 'number', label: valueLabels[i] }]);
-        used[i] = false;
         if (found) return found;
       }
       return null;
@@ -236,6 +292,41 @@ const READ_HUD = () => ({
   overlayText: [...document.querySelectorAll('.overlay:not([hidden]) .overlay__text')].map((n) => n.textContent).join(' | '),
 });
 
+/**
+ * How a full queue of four customers fits the viewport.
+ *
+ * The chips are cloned from a real one so this measures the real CSS, because
+ * waiting for four customers to walk in costs 30 seconds of real time. A chip
+ * narrower than the touch minimum is a gate failure; a chip pushed out of view
+ * is a finding for the playtest on a real phone, not a failure here.
+ */
+const READ_QUEUE_FIT = () => {
+  const strip = document.querySelector('.queue__strip');
+  const real = strip?.querySelector('.chip');
+  if (!real) return { skipped: true };
+
+  const clones = [];
+  for (let i = 0; i < 4; i += 1) {
+    const clone = real.cloneNode(true);
+    strip.append(clone);
+    clones.push(clone);
+  }
+  const viewport = document.documentElement.clientWidth;
+  const boxes = clones.map((n) => {
+    const r = n.getBoundingClientRect();
+    return { left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width) };
+  });
+  const out = {
+    viewport,
+    scrollW: strip.scrollWidth,
+    clientW: strip.clientWidth,
+    scrollable: strip.scrollWidth > strip.clientWidth + 1,
+    boxes,
+  };
+  for (const clone of clones) clone.remove();
+  return out;
+};
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Wait for a customer to be on screen. Returns the queue snapshot or null. */
@@ -278,11 +369,323 @@ async function serveDish(page) {
   await wait(200);
 }
 
+async function clearStand(page) {
+  await page.evaluate(() => document.querySelector('[data-action="clear"]')?.click());
+  await wait(150);
+}
+
+/** Return to the menu from wherever the game was left, overlay or not. */
+async function backToMenu(page) {
+  await page.evaluate(() => {
+    for (const node of document.querySelectorAll('[data-action="back-to-menu"]')) {
+      if (node.getClientRects().length > 0) {
+        node.click();
+        return;
+      }
+    }
+  });
+  await wait(200);
+}
+
+/**
+ * Flip the language from anywhere.
+ *
+ * The button is only rendered on the menu, so the click is dispatched rather
+ * than tapped. The handler is the same one the menu button runs, and a
+ * dispatched click is what makes "the labels follow the language" testable at
+ * all, since the rack only exists once a level is open.
+ */
+async function toggleLanguage(page) {
+  await page.evaluate(() => document.querySelector('[data-action="toggle-lang"]')?.click());
+  await wait(200);
+}
+
+/**
+ * Walk from the menu into one level, unlocking it first if it is not the first.
+ *
+ * Levels 2 and up are locked by progress, and finishing a level to reach the
+ * next one would make the test depend on the test before it. The stored value
+ * is the highest unlocked level, so seeding it is the same thing the game does
+ * when a level is completed, and it only ever touches the mode under test.
+ */
+async function openLevel(page, mode, level) {
+  if (level > 1) {
+    await page.evaluate(
+      (m, l) => {
+        let all = {};
+        try {
+          all = JSON.parse(localStorage.getItem('cn.progress') ?? '{}') ?? {};
+        } catch {
+          all = {};
+        }
+        all[m] = Math.max(Number(all[m] ?? 1), l);
+        localStorage.setItem('cn.progress', JSON.stringify(all));
+      },
+      mode,
+      level,
+    );
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.evaluate(PAGE_HELPERS);
+  }
+
+  await backToMenu(page);
+  await page.click(`[data-mode="${mode}"]`);
+  await wait(150);
+  must(await page.$('[data-screen-name="levels"]:not([hidden])') !== null, `${mode}: the level select opens`);
+
+  // Whether the level is playable is the thing that matters. How many others
+  // are locked also depends on what the run already finished, so it is not
+  // asserted here; the boot check covers that on a fresh profile.
+  const playable = await page.$eval(`.level-card[data-level="${level}"]`, (n) => !n.disabled);
+  must(playable, `${mode} L${level}: the level is selectable`);
+
+  await page.click(`.level-card[data-level="${level}"]`);
+  await wait(300);
+  return page.$('[data-screen-name="game"]:not([hidden])') !== null;
+}
+
+/**
+ * Build one dish for one customer using only what is on screen.
+ *
+ * Returns `{ plan, plate }` on success, or a short reason string on failure.
+ * The chain the stand actually holds is compared against the planned one,
+ * because without that check the test can quietly pass a wrong dish to the
+ * serve step and blame the game for it.
+ */
+async function buildDish(page, chip, { maxSteps, verbose }) {
+  const rack = await page.evaluate(READ_RACK);
+  if (rack.values.length === 0) return { reason: 'no-stand' };
+
+  const plan = await page.evaluate(
+    (t, values, ops, steps) => window.__cn.solve(
+      t,
+      values,
+      ops.map((o) => ({ key: o.key, label: o.label, arity: o.kind === 'unary' ? 'unary' : 'binary', exponent: o.exponent })),
+      steps,
+    ),
+    chip.target,
+    rack.values,
+    rack.ops,
+    maxSteps,
+  );
+
+  if (plan === null) {
+    return { reason: 'unsolvable', detail: `no on-screen route to ${chip.target} with [${rack.values.join(' ')}]` };
+  }
+
+  const planned = plan.map((p) => p.label);
+  for (const step of plan) {
+    if (!(await clickTile(page, step.kind, step.label))) {
+      return { reason: 'tap', detail: `could not tap the ${step.kind} tile "${step.label}" for ${chip.target} (chain: ${planned.join(' ')})` };
+    }
+  }
+
+  const standNow = await page.evaluate(() =>
+    [...document.querySelectorAll('.workspace__line .slot')].map((n) => n.textContent),
+  );
+  if (!check(
+    standNow.join(' ') === planned.join(' '),
+    `${chip.target}: the stand holds exactly the planned chain (built "${standNow.join(' ')}", planned "${planned.join(' ')}")`,
+    { verbose },
+  )) {
+    return { reason: 'chain', detail: `built "${standNow.join(' ')}" instead of "${planned.join(' ')}"` };
+  }
+
+  const built = await page.evaluate(READ_RACK);
+  if (!check(built.serveEnabled, `${chip.target}: Serve lights up once the dish is built`, { verbose })) {
+    return { reason: 'not-servable', detail: `the dish for ${chip.target} never became servable: plate "${built.plateValue}" from ${planned.join(' ')} over [${rack.values.join(' ')}]` };
+  }
+  check(built.plateValue.startsWith('='), `${chip.target}: the finished value is readable on the plate ("${built.plateValue}")`, { verbose });
+
+  const onScreen = await page.evaluate(
+    (t, v) => window.__cn.R.equals(window.__cn.parseTile(v.replace('=', '').trim()), window.__cn.parseTile(t)),
+    chip.target,
+    built.plateValue,
+  );
+  if (!check(onScreen, `${chip.target}: the plate reads the target (plate says "${built.plateValue}")`, { verbose })) {
+    return { reason: 'wrong-value', detail: `plate says "${built.plateValue}" for target ${chip.target}` };
+  }
+
+  return { plan, plate: built.plateValue };
+}
+
+/* ------------------------------------------------------------------ *
+ * One level, start to finish
+ * ------------------------------------------------------------------ */
+
+/**
+ * The first customer of the first level, checked step by step.
+ *
+ * This is the part a player actually walks through once, so it gets the verbose
+ * treatment: the queue, the two-step "cook for" flow, the dish, and the serve.
+ * Everything after it is the same thing again and faster, so those checks are
+ * silent unless they break.
+ */
+async function detailedFirstCustomer(page, { maxSteps }) {
+  const first = await waitForChip(page);
+  if (!must(first !== null, 'a customer walks in on its own')) throw new Error('no customer arrived');
+  ok(`   first customer wants ${first.chips[0].target}, patience ${first.chips[0].seconds}s`);
+  must(first.chips.length === 1, `only one customer at the start (${first.chips.length})`);
+
+  const later = await page.evaluate(READ_QUEUE);
+  must(
+    later.chips.length === 1,
+    `still one customer after a few seconds, not a pile (${later.chips.length})`,
+  );
+  must(later.next.length > 0, `the next arrival is shown to the player: "${later.next}"`);
+
+  const chip = first.chips[0];
+  await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"]`)?.click(), chip.orderId);
+  await wait(100);
+  await cookFor(page, chip.orderId);
+
+  const rack = await page.evaluate(READ_RACK);
+  must(rack.values.length > 0, `the stand loaded the customer's ingredients: [${rack.values.join(' ')}]`);
+  must(rack.standHead.includes(chip.target), `the stand says who it is cooking for: "${rack.standHead}"`);
+  must(
+    rack.ops.every((o) => typeof o.ariaLabel === 'string' && o.ariaLabel.length > 0),
+    'every operator tile has an accessible name',
+  );
+  must(rack.ops.length >= 2, `the rack offers operators: ${rack.ops.map((o) => o.label).join(' ')}`);
+
+  const built = await buildDish(page, chip, { maxSteps, verbose: true });
+  if (built.reason) throw new Error(`${built.reason}: ${built.detail}`);
+  ok(`   solution on screen: ${built.plan.map((p) => p.label).join(' ')}`);
+
+  const before = await page.evaluate(READ_HUD);
+  await serveDish(page);
+  const after = await page.evaluate(READ_HUD);
+  must(after.score > before.score, `serving the right dish scores (${before.score} -> ${after.score})`);
+  must(/served|Poorly|served/i.test(after.feedback) || after.score > before.score, 'the player is told what happened');
+
+  const queue = await page.evaluate(READ_QUEUE);
+  must(!queue.chips.some((c) => c.orderId === chip.orderId), 'the served customer leaves');
+
+  const afterRack = await page.evaluate(READ_RACK);
+  must(afterRack.values.length === 0, 'the stand is empty again');
+
+  const second = await waitForChip(page);
+  if (must(second !== null, 'a second customer arrives')) {
+    ok(`   second customer wants ${second.chips.map((c) => c.target).join(', ')}`);
+  }
+  return 1;
+}
+
+/**
+ * Play one level from the menu to the level-complete overlay.
+ *
+ * The level only passes when every customer in the roster is served, no customer
+ * on screen lacked a route, and the overlay opens. Anything less is a level the
+ * player cannot finish, which is the whole reason this function exists.
+ */
+async function playOneLevel(page, { mode, level, detailed = false }) {
+  const band = getBand(mode, level);
+  const roster = customersForLevel(level);
+  const maxSteps = band.stepMax + 1;
+  const label = `${mode} L${level}`;
+
+  console.log(`\n--- Play ${label} (roster ${roster}, operators ${band.binaryOps.join(' ')} ${band.unaryOps.join(' ')}, up to ${maxSteps} steps)`);
+  must(await openLevel(page, mode, level), `${label}: the game screen opens`);
+
+  let served = detailed ? await detailedFirstCustomer(page, { maxSteps }) : 0;
+  let lost = 0;
+  let unsolvable = 0;
+  let failuresHere = 0;
+  const deadline = Date.now() + LEVEL_DEADLINE_MS;
+
+  while (Date.now() < deadline) {
+    const hud = await page.evaluate(READ_HUD);
+    if (hud.overlay === 'shown') break;
+
+    const queue = await page.evaluate(READ_QUEUE);
+    if (queue.chips.length === 0) {
+      await wait(350);
+      continue;
+    }
+
+    const chip = queue.chips[0];
+    const before = await page.evaluate(READ_HUD);
+    await cookFor(page, chip.orderId);
+
+    const failuresBefore = failures;
+    const built = await buildDish(page, chip, { maxSteps, verbose: false });
+    if (failures !== failuresBefore) failuresHere += 1;
+    if (built.reason) {
+      if (built.reason === 'no-stand') {
+        await wait(200);
+        continue;
+      }
+      if (built.reason === 'unsolvable') unsolvable += 1;
+      note(`${label}: could not build a dish for ${chip.target} (${built.reason}): ${built.detail}`);
+      await clearStand(page);
+      continue;
+    }
+
+    const plate = await page.evaluate(READ_RACK);
+    await serveDish(page);
+    const after = await page.evaluate(READ_HUD);
+    if (after.score > before.score) served += 1;
+    else {
+      lost += 1;
+      note(`${label}: serving ${chip.target} gave "${plate.plateValue}" and they walked out (route: ${built.plan.map((s) => s.label).join(' ')})`);
+    }
+    await wait(150);
+  }
+
+  const hud = await page.evaluate(READ_HUD);
+  must(hud.overlay === 'shown', `${label}: finishing the roster opens the level-complete overlay`);
+  must(
+    unsolvable === 0,
+    `${label}: every customer on screen had a route using only the tiles shown (${unsolvable} had none)`,
+  );
+  must(
+    served === roster,
+    `${label}: the whole roster was served (${served}/${roster}, ${lost} walked out)`,
+  );
+  ok(`   ${label}: served ${served}/${roster}, ${unsolvable} with no route, ${failuresHere} build failures`);
+  ok(`   ${label} overlay: "${hud.overlayText}"`);
+
+  return { served, lost, unsolvable };
+}
+
+/* ------------------------------------------------------------------ *
+ * Command line
+ * ------------------------------------------------------------------ */
+
+function parseArgs(argv) {
+  const args = argv.slice(2);
+  const valueOf = (flag) => {
+    const at = args.indexOf(flag);
+    return at === -1 ? null : args[at + 1] ?? null;
+  };
+
+  let combos = DEFAULT_COMBOS.map((c) => ({ ...c }));
+  if (args.includes('--all')) {
+    combos = [];
+    for (const mode of ['easy', 'medium', 'hard']) {
+      for (let level = 1; level <= 5; level += 1) combos.push({ mode, level });
+    }
+    combos[0] = { ...combos[0], detailed: true };
+  }
+
+  const only = valueOf('--only');
+  const level = valueOf('--level');
+  if (only) combos = combos.filter((c) => c.mode === only);
+  if (level) combos = combos.filter((c) => c.level === Number(level));
+
+  if (combos.length === 0) {
+    console.error(`no level matches --only ${only ?? '*'} --level ${level ?? '*'}`);
+    process.exit(1);
+  }
+  return combos;
+}
+
 /* ------------------------------------------------------------------ *
  * Main
  * ------------------------------------------------------------------ */
 
 async function main() {
+  const combos = parseArgs(process.argv);
   const executablePath = CHROME_PATHS.find((p) => fs.existsSync(p));
   if (!executablePath) {
     console.error('Chrome or Edge not found. Set CHROME_PATH or install one of:');
@@ -300,12 +703,14 @@ async function main() {
   const consoleErrors = [];
   const pageErrors = [];
   const failedRequests = [];
+  const pageCrashes = [];
 
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
     page.on('pageerror', (e) => pageErrors.push(String(e)));
+    page.on('error', (e) => pageCrashes.push(String(e)));
     page.on('requestfailed', (r) => failedRequests.push(`${r.url()} ${r.failure()?.errorText ?? ''}`));
 
     console.log('\n--- Boot');
@@ -329,189 +734,12 @@ async function main() {
     const lockedBefore = await page.$$eval('.level-card.is-locked', (ns) => ns.length);
     must(lockedBefore === 4, `only level 1 is unlocked at first (${lockedBefore} locked)`);
 
-    console.log('\n--- Customers arrive over time');
-    await page.click('.level-card[data-level="1"]');
-    await wait(300);
-    must(await page.$('[data-screen-name="game"]:not([hidden])') !== null, 'the game screen opens');
-
-    const first = await waitForChip(page);
-    if (!must(first !== null, 'a customer walks in on its own')) throw new Error('no customer arrived');
-    ok(`   first customer wants ${first.chips[0].target}, patience ${first.chips[0].seconds}s`);
-    must(first.chips.length === 1, `only one customer at the start (${first.chips.length})`);
-
-    const countAfter5s = await page.evaluate(READ_QUEUE);
-    must(
-      countAfter5s.chips.length === 1,
-      `still one customer after a few seconds, not a pile (${countAfter5s.chips.length})`,
-    );
-    must(countAfter5s.next.length > 0, `the next arrival is shown to the player: "${countAfter5s.next}"`);
-
-    console.log('\n--- Cook for the customer on screen');
-    const target = first.chips[0].target;
-    const orderId = first.chips[0].orderId;
-    await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"]`)?.click(), orderId);
-    await wait(100);
-    await cookFor(page, orderId);
-
-    const rack = await page.evaluate(READ_RACK);
-    must(rack.values.length > 0, `the stand loaded the customer's ingredients: [${rack.values.join(' ')}]`);
-    must(rack.standHead.includes(target), `the stand says who it is cooking for: "${rack.standHead}"`);
-    must(
-      rack.ops.every((o) => typeof o.ariaLabel === 'string' && o.ariaLabel.length > 0),
-      'every operator tile has an accessible name',
-    );
-    must(rack.ops.length >= 2, `the rack offers operators: ${rack.ops.map((o) => o.label).join(' ')}`);
-
-    console.log('\n--- Build the dish from the screen only');
-    const plan = await page.evaluate(
-      (t, values, ops) => window.__cn.solve(
-        t,
-        values,
-        ops.map((o) => ({ key: o.key, label: o.label, arity: o.kind === 'unary' ? 'unary' : 'binary', exponent: o.exponent })),
-        4,
-      ),
-      target,
-      rack.values,
-      rack.ops,
-    );
-    if (!must(plan !== null, `the screen offers a way to reach ${target}`)) {
-      throw new Error(`no solution visible for target ${target} with tiles [${rack.values.join(' ')}]`);
+    for (const combo of combos) {
+      await playOneLevel(page, combo);
     }
-    ok(`   solution on screen: ${plan.map((p) => p.label).join(' ')}`);
-
-    for (const step of plan) {
-      const clicked = await clickTile(page, step.kind, step.label);
-      if (!clicked) fail(`could not tap the ${step.kind} tile "${step.label}"`);
-    }
-
-    // Compare what was built against what was planned. Without this the test can
-    // quietly pass a wrong dish to the serve step and blame the game for it.
-    const standNow = await page.evaluate(() =>
-      [...document.querySelectorAll('.workspace__line .slot')].map((n) => n.textContent),
-    );
-    const planned = plan.map((p) => p.label);
-    must(
-      standNow.join(' ') === planned.join(' '),
-      `the stand holds exactly the planned chain (built "${standNow.join(' ')}", planned "${planned.join(' ')}")`,
-    );
-
-    const built = await page.evaluate(READ_RACK);
-    must(built.serveEnabled, 'Serve lights up once the dish is built');
-    must(built.plateValue.startsWith('='), `the finished value is readable on the plate: "${built.plateValue}"`);
-
-    const onScreen = await page.evaluate(
-      (t, v) => window.__cn.R.equals(window.__cn.parseTile(v.replace('=', '').trim()), window.__cn.parseTile(t)),
-      target,
-      built.plateValue,
-    );
-    must(onScreen, `the plate reads the target ${target} (plate says "${built.plateValue}")`);
-
-    console.log('\n--- Serve');
-    const hudBefore = await page.evaluate(READ_HUD);
-    await serveDish(page);
-    const hudAfter = await page.evaluate(READ_HUD);
-    must(hudAfter.score > hudBefore.score, `serving the right dish scores (${hudBefore.score} -> ${hudAfter.score})`);
-    must(/served|Poorly|served/i.test(hudAfter.feedback) || hudAfter.score > hudBefore.score, 'the player is told what happened');
-    const queueAfterServe = await page.evaluate(READ_QUEUE);
-    must(
-      !queueAfterServe.chips.some((c) => c.orderId === orderId),
-      'the served customer leaves',
-    );
-    const rackAfter = await page.evaluate(READ_RACK);
-    must(rackAfter.values.length === 0, 'the stand is empty again');
-
-    console.log('\n--- Two customers can be waiting at once');
-    const second = await waitForChip(page);
-    if (must(second !== null, 'a second customer arrives')) {
-      ok(`   second customer wants ${second.chips.map((c) => c.target).join(', ')}`);
-    }
-
-    console.log('\n--- Playing to the end of the level');
-    let guard = 0;
-    let servedOk = 0;
-    let unsolvable = 0;
-    while (guard < 300) {
-      guard += 1;
-      const hud = await page.evaluate(READ_HUD);
-      if (hud.overlay === 'shown') break;
-
-      const queue = await page.evaluate(READ_QUEUE);
-      if (queue.chips.length === 0) {
-        await wait(400);
-        continue;
-      }
-      const target2 = queue.chips[0];
-      await cookFor(page, target2.orderId);
-      const r = await page.evaluate(READ_RACK);
-      if (r.values.length === 0) {
-        await wait(250);
-        continue;
-      }
-      const p = await page.evaluate(
-        (t, values, ops) => window.__cn.solve(
-          t,
-          values,
-          ops.map((o) => ({ key: o.key, label: o.label, arity: o.kind === 'unary' ? 'unary' : 'binary', exponent: o.exponent })),
-          4,
-        ),
-        target2.target,
-        r.values,
-        r.ops,
-      );
-      if (!p) {
-        unsolvable += 1;
-        note(`no on-screen route to ${target2.target} with [${r.values.join(' ')}]`);
-        await page.evaluate(() => document.querySelector('[data-action="clear"]')?.click());
-        await wait(200);
-        continue;
-      }
-      let builtAll = true;
-      for (const step of p) {
-        if (!(await clickTile(page, step.kind, step.label))) builtAll = false;
-      }
-      if (!builtAll) {
-        fail(`could not tap the planned tiles for ${target2.target}: ${p.map((s) => s.label).join(' ')}`);
-        await wait(200);
-        continue;
-      }
-      const plate = await page.evaluate(READ_RACK);
-      if (!plate.serveEnabled) {
-        fail(`the dish for ${target2.target} never became servable: plate "${plate.plateValue}" from ${p.map((s) => s.label).join(' ')} over [${r.values.join(' ')}]`);
-        await page.evaluate(() => document.querySelector('[data-action="clear"]')?.click());
-        await wait(200);
-        continue;
-      }
-      const before = await page.evaluate(READ_HUD);
-      await serveDish(page);
-      const after = await page.evaluate(READ_HUD);
-      if (after.score > before.score) servedOk += 1;
-      else note(`serving ${target2.target} gave "${plate.plateValue}" and they walked out (rout was ${p.map((s) => s.label).join(' ')})`);
-      await wait(200);
-    }
-
-    const hudEnd = await page.evaluate(READ_HUD);
-    must(hudEnd.overlay === 'shown', 'finishing the roster opens the level-complete overlay');
-    must(servedOk >= 3, `the whole level can be played through (served ${servedOk})`);
-    must(unsolvable === 0, `every customer on screen had a route (${unsolvable} had none)`);
-    ok(`   served ${servedOk}, ${unsolvable} unsolvable`);
-    ok(`   overlay says: "${hudEnd.overlayText}"`);
-
-    console.log('\n--- Level 2 unlocks (regression)');
-    await page.evaluate(() => document.querySelector('[data-action="back-to-menu"]')?.click());
-    await wait(200);
-    await page.click('[data-mode="easy"]');
-    await wait(200);
-    const lockedAfter = await page.$$eval('.level-card.is-locked', (ns) => ns.length);
-    must(lockedAfter === 3, `finishing level 1 opens level 2 (${lockedAfter} still locked)`);
-    const levelTwoEnabled = await page.$eval(
-      '.level-card[data-level="2"]',
-      (n) => !n.disabled,
-    );
-    must(levelTwoEnabled, 'level 2 is now playable');
 
     console.log('\n--- Language toggle');
-    await page.evaluate(() => document.querySelector('[data-action="back-to-menu"]')?.click());
-    await wait(200);
+    await backToMenu(page);
     await page.click('[data-action="toggle-lang"]');
     await wait(200);
     const lang = await page.evaluate(() => document.documentElement.lang);
@@ -522,27 +750,72 @@ async function main() {
     );
     const idTagline = await page.$eval('[data-i18n="app.tagline"]', (n) => n.textContent);
     must(/Masak/.test(idTagline), `the tagline is localised: "${idTagline}"`);
-    await page.click('[data-action="toggle-lang"]');
-    await wait(150);
 
     console.log('\n--- Operator labels follow the language');
-    await page.click('[data-mode="hard"]');
-    await wait(150);
+    // Read the rack in English, toggle, read it again, and compare. A label that
+    // never changes is an accessibility regression no other check would catch,
+    // because the tiles still look exactly right.
+    //
+    // The toggle lives on the menu, so it is dispatched through the DOM rather
+    // than tapped. It is the same handler a player gets, and it is also a
+    // reminder that there is no language switch inside a level.
+    await openLevel(page, 'medium', 1);
+    await waitForChip(page);
+    await page.evaluate(() => document.querySelector('.chip .chip__cook')?.click());
+    await wait(200);
+    const englishOps = await page.evaluate(READ_RACK);
+    await toggleLanguage(page);
+    const indonesianOps = await page.evaluate(READ_RACK);
+    must(englishOps.ops.length > 0, `the rack offers operators to name: ${englishOps.ops.map((o) => o.label).join(' ')}`);
+    must(
+      englishOps.ops.every((o) => o.ariaLabel && /[a-z]/i.test(o.ariaLabel)),
+      'operator tiles are named for screen readers',
+    );
+    must(
+      indonesianOps.ops.every((o, i) => o.ariaLabel && o.ariaLabel !== englishOps.ops[i]?.ariaLabel),
+      `switching language renames every operator tile (${indonesianOps.ops.map((o) => `${o.label}=${o.ariaLabel}`).join(', ')})`,
+    );
+    must(
+      indonesianOps.ops.map((o) => o.label).join(' ') === englishOps.ops.map((o) => o.label).join(' '),
+      'switching language does not change the operators themselves',
+    );
+    must(
+      indonesianOps.values.join(' ') === englishOps.values.join(' '),
+      'switching language leaves the ingredients alone',
+    );
+    await toggleLanguage(page);
+    note('   the language toggle only exists on the menu, not inside a level');
+
+    console.log('\n--- Level 2 unlocks (regression)');
+    await backToMenu(page);
+    await page.click('[data-mode="easy"]');
+    await wait(200);
+    // Read the lock count against the stored high-water mark rather than a fixed
+    // number, so this holds for a quick run and for a full fifteen-level sweep
+    // alike.
+    const easyProgress = await page.evaluate(() => Number(JSON.parse(localStorage.getItem('cn.progress') ?? '{}').easy ?? 1));
+    const lockedAfter = await page.$$eval('.level-card.is-locked', (ns) => ns.length);
+    must(
+      easyProgress >= 2,
+      `finishing Easy level 1 recorded progress (${easyProgress})`,
+    );
+    must(
+      lockedAfter === 5 - easyProgress,
+      `the level grid matches the progress that was earned (${lockedAfter} locked, easy level ${easyProgress} unlocked)`,
+    );
+    const levelTwoEnabled = await page.$eval(
+      '.level-card[data-level="2"]',
+      (n) => !n.disabled,
+    );
+    must(levelTwoEnabled, 'level 2 is now playable');
+
+    console.log('\n--- Desktop viewport');
     await page.click('.level-card[data-level="1"]');
     await wait(300);
     await waitForChip(page);
-    const hardQueue = await page.evaluate(READ_QUEUE);
-    if (hardQueue.chips.length > 0) {
-      await cookFor(page, hardQueue.chips[0].orderId);
-      const hardRack = await page.evaluate(READ_RACK);
-      ok(`   Hard level 1 operators: ${hardRack.ops.map((o) => `${o.label}=${o.ariaLabel}`).join(', ')}`);
-      must(
-        hardRack.ops.every((o) => o.ariaLabel && /[a-z]/i.test(o.ariaLabel)),
-        'operator tiles are named for screen readers',
-      );
-    }
-
-    console.log('\n--- Desktop viewport');
+    // Load the stand so the measurement covers a real rack and not an empty one.
+    await page.evaluate(() => document.querySelector('.chip .chip__cook')?.click());
+    await wait(200);
     // isMobile/hasTouch are kept deliberately. Puppeteer reloads the page when
     // those change, which would just prove the app boots to the menu again. The
     // layout responds to width through media queries, not to the mobile flag.
@@ -579,14 +852,33 @@ async function main() {
     );
     note(`   controls under 32px tall at 320px: ${narrow.smallTargets}`);
 
+    const fit = await page.evaluate(READ_QUEUE_FIT);
+    if (fit.skipped) {
+      note('   could not measure a full queue: no customer chip on screen');
+    } else {
+      must(
+        fit.boxes.every((b) => b.width >= 44),
+        `every customer chip stays a comfortable tap target at 320px (${fit.boxes.map((b) => b.width).join(', ')}px wide)`,
+      );
+      const offscreen = fit.boxes.filter((b) => b.left < 0 || b.right > fit.viewport);
+      note(
+        `   four customers need ${fit.scrollW}px of a ${fit.viewport}px viewport`
+        + `${fit.scrollable ? ' (the queue scrolls sideways)' : ''}`
+        + `${offscreen.length > 0 ? `, ${offscreen.length} chip(s) sit outside the view: ask the player about this` : ', all four fit'}`,
+      );
+    }
+
     console.log('\n--- Clean console');
     must(consoleErrors.length === 0, `no console errors${consoleErrors.length ? `: ${consoleErrors.join(' | ')}` : ''}`);
     must(pageErrors.length === 0, `no uncaught page errors${pageErrors.length ? `: ${pageErrors.join(' | ')}` : ''}`);
     must(failedRequests.length === 0, `no failed requests${failedRequests.length ? `: ${failedRequests.join(' | ')}` : ''}`);
   } catch (error) {
     fail(`the run stopped early: ${error.message}`);
+    for (const crash of pageCrashes) fail(`the page crashed: ${crash}`);
   } finally {
-    await browser.close();
+    // A browser that is already gone can refuse to close, and that error must
+    // not hide the one that actually matters.
+    await browser.close().catch(() => {});
     server.close();
   }
 

@@ -256,8 +256,11 @@ export function renderChips(state) {
 function renderQueueNext(state) {
   const next = S.secondsToNextCustomer(state);
   const lastOne = state.spawnedCount >= state.rosterSize - 1;
+  // Counted from the customers still on screen, not from the whole roster: a
+  // served customer leaves the strip, and the strip should stop saying it is
+  // full because of someone who is already gone.
   let text;
-  if (state.orders.length >= MAX_ON_SCREEN) text = t('queue.full');
+  if (S.activeOrders(state).length >= MAX_ON_SCREEN) text = t('queue.full');
   else if (next === null) text = lastOne ? t('queue.nextLast') : t('queue.nextSoon');
   else text = t('queue.nextIn', { seconds: Math.ceil(next) });
   dom.queueNext.textContent = text;

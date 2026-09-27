@@ -191,8 +191,11 @@ export function canAccept(state, kind) {
   if (kind === 'number') return expected === 'number';
   if (kind === 'operator') return expected === 'operator';
   if (kind === 'unary') {
-    if (state.expression.length === 0) return false;
-    return state.expression[state.expression.length - 1].kind === 'number';
+    // After a unary another unary is allowed, because `2 ² ²` is a chain the
+    // core can evaluate and the generator can hand out. Refusing it would strand
+    // a customer whose only route needs two squares in a row.
+    const last = state.expression[state.expression.length - 1];
+    return last?.kind === 'number' || last?.kind === 'unary';
   }
   return false;
 }
@@ -217,8 +220,11 @@ export function pushTile(state, item) {
   // A unary step acts on the value in front of it, so it needs one. Reported
   // before the generic alternation check, otherwise the player only ever sees
   // "that step does not work here" for a mistake they can easily correct.
-  if (item.kind === 'unary' && state.expression[state.expression.length - 1]?.kind !== 'number') {
-    return { ok: false, reason: 'work.unaryFirst' };
+  if (item.kind === 'unary') {
+    const last = state.expression[state.expression.length - 1];
+    if (last?.kind !== 'number' && last?.kind !== 'unary') {
+      return { ok: false, reason: 'work.unaryFirst' };
+    }
   }
 
   if (!canAccept(state, item.kind)) {
@@ -255,8 +261,14 @@ export function pushTile(state, item) {
   }
 
   if (item.kind === 'unary') {
-    const last = state.expression[state.expression.length - 1];
-    const probe = { start: last.value, steps: [{ op: item.op, exponent: item.exponent }] };
+    // The step is checked against the running total, which is the value
+    // `evaluate` will actually feed it, and not against the tile it happens to
+    // sit behind. In `1 + 3 ²` the square belongs to 4, so a check on 3 both
+    // refuses a legal move and lets an illegal one through to a stand that can
+    // never be served.
+    const base = chainValue(state);
+    if (base === null) return { ok: false, reason: 'work.badStep' };
+    const probe = { start: base, steps: [{ op: item.op, exponent: item.exponent }] };
     try {
       evaluate(probe, { maxPowExponent: state.band.maxPowExponent });
     } catch (error) {
@@ -272,6 +284,33 @@ export function pushTile(state, item) {
   return { ok: false, reason: 'work.badStep' };
 }
 
+/**
+ * The value of the stand right now, whether or not the chain is finished.
+ *
+ * Returns null when the stand is empty or the chain so far cannot be evaluated.
+ */
+function chainValue(state) {
+  if (state.expression.length === 0) return null;
+  try {
+    return evaluate(expressionToRecipe(state.expression), {
+      maxPowExponent: state.band.maxPowExponent,
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Is the chain on the stand structurally sound?
+ *
+ * The alternation is the same one `canAccept` enforces while the player builds,
+ * and the two have to agree exactly: a step that `canAccept` welcomes and this
+ * rejects leaves the player holding a chain that can never be served.
+ *
+ * A unary step does not break the number/operator alternation, it only ever
+ * follows one. So after a square the chain waits for an operator just as it
+ * would after a number, and `2 ² − 7` is as legal as `2 + 7`.
+ */
 function isPlayable(state) {
   const expression = state.expression;
   if (expression.length === 0) return false;
@@ -280,10 +319,14 @@ function isPlayable(state) {
     const item = expression[i];
     const previous = expression[i - 1];
     if (item.kind === 'number' && previous.kind !== 'operator' && previous.kind !== 'unary') return false;
-    if (item.kind === 'operator' && previous.kind !== 'number') return false;
-    if (item.kind === 'unary' && previous.kind !== 'number') return false;
+    if (item.kind === 'operator' && previous.kind !== 'number' && previous.kind !== 'unary') return false;
+    if (item.kind === 'unary' && previous.kind !== 'number' && previous.kind !== 'unary') return false;
   }
-  return expression[expression.length - 1].kind === 'number';
+  // A chain is finished when it is not waiting for an operand, so it may end on
+  // a square or a root. Requiring a number at the end made 42% of Hard level 1
+  // and two thirds of Hard level 3 unservable: the player would build the right
+  // dish and Serve would never light up.
+  return expression[expression.length - 1].kind !== 'operator';
 }
 
 /** Flatten the stand into the core's chain shape. */
@@ -307,13 +350,7 @@ export function expressionToRecipe(expression) {
 
 export function runningTotal(state) {
   if (!isPlayable(state)) return null;
-  try {
-    return evaluate(expressionToRecipe(state.expression), {
-      maxPowExponent: state.band.maxPowExponent,
-    });
-  } catch {
-    return null;
-  }
+  return chainValue(state);
 }
 
 /**
@@ -448,7 +485,12 @@ export function tick(state, seconds = 1) {
   // 2. The spawner counts down, but only fires when a slot is actually free.
   state.secondsToNextArrival -= seconds;
   if (state.secondsToNextArrival <= 0) {
-    const roomLeft = state.orders.length < MAX_ON_SCREEN && state.spawnedCount < state.rosterSize;
+    // The cap is about who is *on screen*, not about how many customers the
+    // level owes. Served and walked customers stay in `orders` for the score and
+    // the summary, so counting the array itself stopped the spawner for good
+    // after the fourth customer and left every level with a roster above four
+    // impossible to finish.
+    const roomLeft = activeOrders(state).length < MAX_ON_SCREEN && state.spawnedCount < state.rosterSize;
     if (roomLeft) {
       events.spawned = spawn(state);
       state.secondsToNextArrival = arrivalGapSeconds(state.mode, state.level, state.spawnedCount - 1, state.rng);
@@ -471,7 +513,7 @@ export function tick(state, seconds = 1) {
 /** Seconds until the next customer walks in, or null when the roster is spent. */
 export function secondsToNextCustomer(state) {
   if (state.spawnedCount >= state.rosterSize) return null;
-  if (state.orders.length >= MAX_ON_SCREEN) return null;
+  if (activeOrders(state).length >= MAX_ON_SCREEN) return null;
   return Math.max(0, state.secondsToNextArrival);
 }
 

@@ -13,83 +13,60 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 ## ⚠️ Sesi berikutnya - mulai dari sini
 
 Status saat plan ini ditulis (27 September 2026, sisa ±21 hari ke deadline):
-Fase 1, 2, dan 2.5 selesai dan terverifikasi. Fase 3 baru ~10%, Fase 4 belum
-mulai. Kita ~3 minggu lebih maju dari jadwal PRD di §10.
+Fase 1, 2, 2.5 selesai dan terverifikasi. Fase 3 secara teknis selesai —
+**kelima belas kombinasi mode x level sudah bisa dimainkan sampai tamat secara
+otomatis.** Kita ~3 minggu lebih maju dari jadwal PRD di §10.
 
 **Yang paling penting untuk diketahui sebelum mulai:**
 
-1. **28 file belum di-commit.** Seluruh redesign masih di working tree. Kalau
-   ada yang rusak, kerja ini hilang. Commit lebih dulu.
-2. **Angka spawner dan kesabaran adalah tebakan.** Semuanya di
-   `src/core/difficulty.js` dan ditandai sebagai titik awal. Tidak ada satu pun
-   angka yang sudah pernah dilihat pemain sungguhan.
-3. **Medium dan Hard belum pernah dimainkan sampai tamat** oleh test apa pun.
-   Yang sudah terbukti otomatis hanya Easy level 1.
-4. **Rubrik lomba belum didapat.** Ini yang paling lambat dan paling di luar
+1. **Main di HP asli adalah satu-satunya sisa pekerjaan yang tidak bisa
+   delegate ke siapa pun.** Semua angka di `src/core/difficulty.js` masih
+   tebakan. Formulirnya sudah siap di **`PLAYTEST.md`** — buka, isi, kirim.
+2. **Rubrik lomba belum didapat.** Ini yang paling lambat dan paling di luar
    kendali. Sudah diminta ke panitia? Kalau belum, hari ini juga.
+3. **Jangan percaya test yang hanya main Easy level 1.** Sesi ini membuktikan
+   itu: 12 dari 15 level tidak pernah bisa tamat, dan 42-66% soal Hard tidak
+   bisa diportion. Test yang hanya mengecek konfigurasi melewati 12 dari 15
+   level. Kalau sebuah level belum pernah dimainkan dari menu sampai overlay,
+   ia belum terbukti.
+4. **Materi submission belum dimulai sama sekali.** Video demo butuh rekaman
+   layar yang bisa diambil sekalian dari playtest.
 
 Urutan pekerjaan:
 
-### 1. Commit redesign - 15 menit
+### 1. Playtest di HP asli - 1-2 jam (waktu manusia, blocker utama)
 
-- [ ] Rename folder repo (perlu dilakukan manual, folder sedang dikunci proses):
-      `Rename-Item "C:\Users\ASUS\Documents\number_kitchen" "cooking_number"`
-- [ ] Commit 24 file modified + 4 baru (`src/ui/progress.js`,
-      `test/state.test.js`, `test/progress.test.js`, `test/difficulty.test.js`)
-      **sebagai satu unit.** Jangan pecah jadi commit kecil: logikanya saling
-      terkait dan separuh commit akan tidak jalan.
+Ikuti **`PLAYTEST.md`** persis: lima run (Easy L1, Easy L5, Medium L1, Hard L1,
+Hard L3), isi formulirnya, kirim balik. Sekalian rekam layar 30-60 detik per run
+untuk video demo.
 
-### 2. Tutup celah test Medium dan Hard - 1-2 jam (prioritas tertinggi)
+Yang sudah otomatis terukur dan tidak perlu dicatat lagi: semua 15 level
+solvable dari bahan yang tampil di layar, dan tidak ada walkout yang terjadi
+karena salah klik.
 
-- [ ] Pecah loop "main sampai level selesai" di `scripts/smoke-ui.js` menjadi
-      fungsi yang menerima mode dan level
-- [ ] Mainkan **Medium** sampai overlay muncul. Yang belum terbukti: tile
-      pecahan tampil sebagai desimal (`0.5`) — apakah `drag.js` masih membaca
-      nilainya dengan benar dari `dataset.tileKey`?
-- [ ] Mainkan **Hard** sampai overlay muncul. Yang belum terbukti: slot unary
-      (`² ³ √`) di tengah rantai, dan operator yang lebih sempit di level 3+
-- [ ] Pastikan ketiga mode tetap hijau di `npm run smoke`
+### 2. Kalibrasi dari hasil playtest - 1 jam
 
-Kenapa ini yang paling tinggi nilai: jaminan solvability sudah terbukti di
-tingkat matematika (10.000 soal x 15 kombinasi), tapi jalur **UI**-nya belum.
-Bug di sini tidak akan ketahuan tanpa memainkannya.
+- [ ] Setel ulang angka di `src/core/difficulty.js` berdasarkan data playtest.
+      Semuanya di satu file, jadi tidak ada logika yang tersentuh.
+- [ ] Putuskan roster per mode atau satu tangga bersama (lihat open item di
+      bawah).
+- [ ] Perpendek alur lima langkah kalau playtest menunjukkan sering salah ketuk
+      di langkah pertama.
+- [ ] Perbaiki teks i18n yang belum natural saat dibaca.
+- [ ] Putuskan apa yang harus dilakukan dengan barisan pelanggan pada layar
+      320px: saat ini 4 chip butuh 414px, jadi 2 chip berada di luar layar.
+      Playtest yang tahu apakah ini terasa oleh pemain sungguhan.
 
-### 3. Playtest di HP asli - 1-2 jam (waktu manusia, bisa dilakukan offline)
+### 3. Submission - 3-4 jam (bisa paralel dengan langkah 1-2)
 
-Blocker tunggal untuk semua angka di `src/core/difficulty.js`. Mainkan Easy L1,
-Easy L5, Medium L1, Hard L1, lalu catat:
-
-| Yang dicatat | Untuk memvalidasi |
-|---|---|
-| Pelanggan tersaji vs walkout | `PATIENCE_SECONDS` |
-| Lama level dari mulai sampai overlay | `ARRIVAL_SECONDS` |
-| Pernah 3-4 chip sekaligus? Terasa penuh? | `MAX_ON_SCREEN` |
-| Lama satu puzzle dari chip muncul sampai tersaji | Angka kalibrasi sebenarnya |
-| Tile `0.5` di Medium, membingungkan? | Potensi masalah UX terbesar |
-| Sadar harus tekan "Masak untuk dia", atau baru setelah salah ketuk? | Alur 5 langkah |
-| Saat drag, apakah halaman ikut ter-scroll? | Satu-satunya yang tak bisa dites otomatis |
-
-Aturan keputusan: Easy L1 sering walkout -> naikkan `PATIENCE_SECONDS.easy`.
-Easy L5 selalu cuma 1 chip -> turunkan `ARRIVAL_SECONDS.easy[4]`. Tiga chip
-sudah terasa penuh -> `MAX_ON_SCREEN = 3`. Semuanya di satu file, jadi aman
-diubah tanpa menyentuh logika.
-
-### 4. Polish dari hasil playtest - 2-3 jam
-
-- [ ] Setel ulang angka di `src/core/difficulty.js` berdasarkan data playtest
-- [ ] Perpendek alur lima langkah kalau playtest menunjukkan PLAYER sering
-      salah ketuk di langkah pertama
-- [ ] Perbaiki teks i18n yang belum natural saat dibaca
-
-### 5. Submission - 3-4 jam (bisa paralel dengan langkah 3-4)
-
-- [ ] Video demo 1-2 menit, screen recording gameplay
+- [ ] Video demo 1-2 menit, dari rekaman playtest
 - [ ] Deskripsi proyek
 - [ ] Checklist rubrik lomba
 
 ### Kalau hanya sempat satu sesi
 
-Langkah 2. Playable di tiga mode dan terbukti otomatis, dengan 1-2 jam.
+Langkah 1. Playtest yang sudah tercatat, dengan angka yang sudah diukur
+manusia, bukan lagi tebakan.
 
 ---
 
@@ -250,15 +227,23 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
 
 - [~] **Kalibrasi spawner dan kesabaran di HP asli.** Angka di
       `src/core/difficulty.js` adalah titik awal, bukan angka final, dan ini
-      bagian yang tidak bisa diputuskan dari atas meja.
-- [ ] Tutup celah test Medium dan Hard (lihat langkah 2 di atas)
+      bagian yang tidak bisa diputuskan dari atas meja. Formulir: `PLAYTEST.md`.
+- [x] Tutup celah test Medium dan Hard
+- [x] Kelima belas kombinasi mode x level bisa dimainkan dari menu sampai
+      overlay, dan setiap pelanggan punya rute dari bahan yang tampil di layar
+- [x] Test regresi yang memutar ulang solusi rahasia Medium dan Hard melalui
+      `pushTile`, jadi stand dipaksa menepati jaminan solvability yang sama
+      dengan core
 - [x] Lebar 320px dan 1280px diperiksa otomatis di smoke test
+- [~] Barisan 4 pelanggan pada layar 320px: 2 dari 4 chip berada di luar
+      layar (butuh 414px). Target sentuh aman, tapi keberadaan chip di luar
+      layar belum tentu dirasakan pemain. Menunggu jawaban playtest.
 - [ ] Uji drag di perangkat asli: apakah drag merebut scroll halaman
 - [ ] Styling akhir dan polish
 
 ## Fase 4 - Submission - [ ]
 
-- [ ] Materi submission: video demo dan deskripsi
+- [ ] Materi submission: video demo (bisa dari rekaman playtest) dan deskripsi
 - [ ] Checklist rubrik lomba
 - [ ] Nice-to-have hanya kalau benar-benar ada waktu kosong: suara, animasi
       karakter, leaderboard lokal. **Prioritaskan playtest dan video demo dulu.**
@@ -271,6 +256,17 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
       paling lambat dan paling di luar kendali kita, jadi harus digesa.
 - [ ] Hasil kalibrasi spawner dan kesabaran di HP asli
 - [ ] Aset visual final dari tim (SVG/PNG/WebP) plus style reference
+- [ ] **Roster per mode atau satu tangga bersama?** PRD §5.7 menulis
+      "Easy 4→6, Hard 6→8", tapi implementasi memakai satu tangga
+      `[4,5,6,7,8]` untuk ketiga mode (`difficulty.js:20`), jadi Hard L1
+      menyajikan 4 pelanggan, bukan 6. Playtest yang memutuskan: kalau Hard L1
+      terasa terlalu tipis atau terlalu singkat, roster per mode adalah dial
+      pertama yang diputar.
+- [ ] **Mode tetap tiga, bukan 15 level datar.** Sudah ditinjau dan
+      dipertahankan: 3 x 5 = 15 level juga, mode memetakan ke kelas target
+      7/8/9 (PRD §5.1) dan kartu mode sudah menampilkannya, dan tangga operator
+      per mode adalah alat keamanan solvability — digabung jadi satu, level 1
+      harus `+ −` untuk semua orang dan `√` baru muncul di level akhir.
 
 ## Di luar scope
 

@@ -52,10 +52,50 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Sel nyawa dari HUD, dan seluruh string `hud.lives`.
 
 ### Fixed
-Ditemukan lewat review dan `scripts/smoke-ui.js`, bukan oleh unit test — test yang
-sebelumnya hanya mencakup core, dan smoke test lama tidak pernah membiarkan
-waktu berjalan.
 
+Ditemukan lewat review, `scripts/smoke-ui.js`, dan test regresi baru — bukan
+oleh unit test yang sudah ada. Test sebelumnya hanya mencakup core plus
+Easy level 1, yang kebetulan merupakan satu-satunya level tanpa operator
+unary dan dengan roster tepat 4, jadi tidak satu pun dari bug di bawah
+mungkin terlihat dari sana. Jaminan solvability di `src/core` sendiri benar
+sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
+**disusun** mengikuti solusi itu.
+
+- **12 dari 15 level tidak pernah bisa diselesaikan.** Batas `MAX_ON_SCREEN`
+  dihitung dari `state.orders.length`, yaitu seluruh pelanggan yang pernah
+  dibuat. Pelanggan yang sudah tersaji tetap tinggal di array itu untuk
+  keperluan skor dan rekap, jadi hitungannya tidak pernah turun lagi dan
+  spawner berhenti permanen setelah pelanggan keempat. Semua level dengan
+  roster di atas 4 — yaitu level 2 sampai 5 di ketiga mode — menggantung di
+  `phase: playing` selamanya dan overlay level-complete tidak pernah muncul.
+  Sekarang batas itu dihitung dari pelanggan yang benar-benar masih di layar
+  (`activeOrders`), sama seperti yang dibaca `view.js` untuk barisan antrean.
+  Test lama ("the spawner holds instead of overflowing the screen") justru
+  mengunci bug ini, karena ia memeriksa `orders.length <= MAX_ON_SCREEN`,
+  yang memang selalu terpenuhi pada kode yang salah.
+- **Sekitar 42% soal Hard level 1 dan 66% soal Hard level 3 tidak bisa
+  diportion.** `isPlayable` mensyaratkan rantai berakhir dengan angka, padahal
+  generator secara rutin membuat langkah terakhir puzzle berupa unary, misalnya
+  `2³ − 7 × 3 + 1`. Pemain menyusun hidangan yang benar, tombol Sajian tidak
+  pernah menyala, dan stand hanya bisa dikosongkan. Rantai yang berakhir pada
+  pangkat atau akar sekarang dianggap selesai.
+- **Operator setelah unary ditolak padahal sudah diterima.** `canAccept`
+  mengizinkan operator biner sesudah `²`, tapi `isPlayable` menolaknya, jadi
+  langkahnya masuk ke stand lalu stand itu dinyatakan tidak bisa diportion.
+  Aturan alternasi angka/operator sekarang sama persis di keduanya: sebuah
+  langkah unary tidak memutus alternasi, hanya mengikuti nilai.
+- **Langkah unary dinilai terhadap nilai yang salah.** `pushTile` memvalidasi
+  `√` dan `²` terhadap nilai tile di depannya, padahal `evaluate` menerapkannya
+  ke running total. Pada `1 + 3 ²` yang dikuadratkan adalah 4, bukan 3.
+  Akibatnya langkah yang legal ditolak (pemain tersesat dan tidak punya jalan
+  lain) dan langkah yang salah diterima (stand berisi rantai yang tidak akan
+  pernah bisa disajikan). Validasi sekarang memakai nilai rantai berjalan.
+- **Dua unary beruntun tidak bisa disusun.** Generator memproduksinya pada 18%
+  soal Hard level 3 dan 19% level 5, sementara stand menolak unary setelah
+  unary. Karena bahan stand adalah subset dari solusi, ada pelanggan yang
+  kehilangan seluruh rutenya: level yang secara matematika solvable tetapi
+  mustahil dimainkan. Sekarang `2 ² ²` boleh disusun, sama seperti yang sudah
+  diperlakukan `evaluate` di core.
 - **Jam tidak pernah bergerak sama sekali.** `lastTick` di-update *sebelum* cek
   "sudah lewat satu detik belum", sehingga tiap frame 250 ms membuang pecahan
   detik yang sudah terkumpul dan `elapsed` tidak pernah mencapai 1000 ms.
@@ -91,6 +131,32 @@ waktu berjalan.
 
 
 ### Added
+- **`scripts/smoke-ui.js` bisa memainkan level mana pun.** Loop "main sampai
+  overlay muncul" dipecah menjadi `playOneLevel(page, { mode, level })`, jadi
+  Medium dan Hard sekarang ikut diuji otomatis, bukan hanya dilihat-lihat
+  label operatornya.
+  - Default: Easy L1, Medium L1, Hard L1, dan Hard L3 — level pertama yang
+    membuka `√` sekaligus tempat dua unary beruntun mulai muncul.
+  - `npm run smoke -- --only easy` untuk loop cepat, `npm run smoke:all` untuk
+    kelima belas kombinasi mode x level.
+  - Level di atas 1 dibuka lewat seed `localStorage` yang meniru apa yang
+    dilakukan game saat sebuah level selesai, jadi tiap level tidak bergantung
+    pada level sebelumnya dalam run yang sama.
+  - Solver di dalam test diberi `maxSteps` dari band level tersebut, bukan
+    angka tetap, dan cabang mati di-memoize supaya tujuh bahan dan tiga
+    operator unary di Hard tidak meledakkan waktu pencarian.
+- **Test regresi `every puzzle the stand is offered can actually be built on
+  it`** di `test/state.test.js`: memutar ulang solusi rahasia 720 puzzle
+  (Medium L1 dan Hard L1-5, 120 seed masing-masing) melalui `pushTile` satu per
+  satu. Ini satu-satunya test yang memaksa stand menepati jaminan yang sama
+  dengan core, dan test inilah yang menemukan keempat bug unary di atas.
+- **`PLAYTEST.md`** — formulir playtest HP: cara membuka game di perangkat,
+  lima run yang harus dicatat, apa yang harus dilaporkan balik, dan daftar
+  kejadian yang harus dilaporkan sebagai bug dan bukan disetel.
+- Smoke test mengukur antrean pada 320px: barisan chip butuh 414px untuk empat
+  pelanggan sedangkan viewport-nya 320px, sehingga dua chip berada di luar
+  layar. Dicatat sebagai `note` untuk dikonfirmasi di playtest, karena target
+  sentuhnya sendiri tetap aman di 66px.
 - Struktur dokumen proyek: `AGENTS.md`, `CHANGELOG.md`, `PLAN.md`.
 - **UI playable** (`index.html`, `styles/`, `src/ui/`)
   - `i18n.js` - semua string UI, English sebagai default, toggle ID/EN.
@@ -119,12 +185,23 @@ waktu berjalan.
 - **Bahan stand milik pelanggan yang sedang dimasak.** Kalau bahan semua
   pelanggan bercampur, pemain bisa menghabiskan bahan milik satu pesanan untuk
   pesanan lain dan membuat level mustahil diselesaikan.
-- **Pindah pelanggan tidak menghapus apa pun.**Aksi yang merusak hanya boleh
+- **Pindah pelanggan tidak menghapus apa pun.** Aksi yang merusak hanya boleh
   dipicu secara sadar; walkout karena salah klik adalah kegagalan desain.
 - **Spawner berhenti, bukan menolak**, saat layar penuh. Pelanggan yang tidak
-  bisa masuk bukan walkout, karena itu bukan salah pemain.
+  bisa masuk bukan walkout, karena itu bukan salah pemain. Batas "layar penuh"
+  dihitung dari pelanggan yang masih aktif, bukan dari pelanggan yang pernah
+  datang, supaya level dengan roster besar tetap bisa diselesaikan.
+- **Rantai yang selesai adalah rantai yang tidak menunggu operand lagi**, jadi
+  boleh berakhir pada `²`, `³`, atau `√` — bukan hanya pada angka. Stand
+  menuntut angka di akhir sebenarnya membuat 42% soal Hard level 1 mustahil
+  diportion.
+- **Aturan "`canAccept` dan `isPlayable` harus sepakat"** jadi prinsip, bukan
+  kebetulan. Langkah yang diterima tapi tidak dianggap sah menghasilkan stand
+  yang tidak bisa diportion, dan itu keempat bug unary berasal dari satu
+  pemisahan aturan yang tidak sinkron.
 - Timer awal: Easy 50 detik, Medium 44 detik, Hard 38 detik kesabaran; interval
-  dasar 15, 12, dan 10 detik. Semua angka ini titik awal untuk playtest.
+  dasar 15, 12, dan 10 detik. Semua angka ini titik awal untuk playtest di HP
+  asli, dan formulirnya ada di `PLAYTEST.md`.
 - Placeholder WebP dipilih daripada ilustrasi hasil generate AI, sesuai aturan
   anti-AI-slop.
 

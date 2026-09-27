@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 import { LEVELS_PER_MODE, MAX_ON_SCREEN } from '../src/core/difficulty.js';
 import { makeRng } from '../src/core/generator.js';
-import { rat, toDisplayString } from '../src/core/rational.js';
+import { add, rat, toDisplayString } from '../src/core/rational.js';
 import * as S from '../src/ui/state.js';
 
 /** A deterministic level, so a failure is always reproducible. */
@@ -89,13 +89,65 @@ test('customers arrive one at a time, not all at once', () => {
 });
 
 test('the spawner holds instead of overflowing the screen', () => {
-  const state = freshState('easy', 1);
-  // Run well past the roster time without serving anyone, sampling the spawner.
-  for (let i = 0; i < 400; i += 1) S.tick(state, 1);
+  const state = freshState('easy', 5);
+  let busiest = 0;
+  let guard = 0;
+  while (state.phase === S.PHASES.PLAYING && guard < 2000) {
+    guard += 1;
+    S.tick(state, 1);
+    busiest = Math.max(busiest, S.activeOrders(state).length);
+
+    // Serve whoever is waiting, so the roster keeps moving and the cap is
+    // measured while slots are actually being freed.
+    const order = state.orders.find((o) => o.status === S.ORDER_STATUS.WAITING);
+    if (!order) continue;
+    S.startCooking(state, order.id);
+    buildSecretRecipe(state, order);
+    S.serveTo(state, order.id);
+  }
+  assert.equal(state.phase, S.PHASES.LEVEL_DONE, 'the level has to be able to end');
+  assert.equal(state.spawnedCount, state.rosterSize, 'every customer must have walked in');
+  assert.equal(S.ordersServed(state), state.rosterSize);
   assert.ok(
-    state.orders.length <= MAX_ON_SCREEN,
-    `screen held ${state.orders.length} customers, cap is ${MAX_ON_SCREEN}`,
+    busiest <= MAX_ON_SCREEN,
+    `${busiest} customers were on screen at once, the cap is ${MAX_ON_SCREEN}`,
   );
+});
+
+test('a level with a roster longer than the screen cap can still finish (regression)', () => {
+  // The cap limits who is on screen, not how many customers a level owes.
+  // Counting served customers against it stopped the spawner for good after the
+  // fourth customer, which left every level above four impossible to complete.
+  // Only level 1 was ever played, and its roster is exactly four.
+  for (const level of [2, 3, 4, 5]) {
+    const state = freshState('easy', level);
+    let guard = 0;
+    while (state.phase === S.PHASES.PLAYING && guard < 4000) {
+      guard += 1;
+      S.tick(state, 1);
+    }
+    assert.equal(state.phase, S.PHASES.LEVEL_DONE, `easy level ${level} never finished`);
+    assert.equal(state.spawnedCount, state.rosterSize, `easy level ${level} left customers unspawned`);
+    assert.equal(
+      S.ordersServed(state) + S.ordersLost(state),
+      state.rosterSize,
+      `easy level ${level} lost track of a customer`,
+    );
+  }
+});
+
+test('the next-arrival countdown returns when a slot frees up', () => {
+  const state = freshState('easy', 3);
+  S.tick(state, 1);
+  S.startCooking(state, state.orders[0].id);
+  buildSecretRecipe(state, state.orders[0]);
+  S.serveTo(state, state.orders[0].id);
+
+  // The roster is not spent and no one is waiting, so the next customer is due
+  // and the readout has to say roughly when.
+  assert.ok(S.ordersServed(state) === 1);
+  assert.ok(S.secondsToNextCustomer(state) !== null, 'a served customer must free a slot');
+  assert.equal(S.hasMoreCustomers(state), true);
 });
 
 test('a customer who runs out of patience walks out with nothing', () => {
@@ -354,6 +406,141 @@ test('unary steps are only legal after a value', () => {
   S.pushTile(state, { kind: 'operator', op: 'add' });
   assert.equal(S.pushTile(state, { kind: 'unary', op: 'sqrt' }).reason, 'work.unaryFirst',
     'a unary after an operator must still be refused');
+});
+
+test('two unary steps in a row are a chain the player can build', () => {
+  const state = freshState('hard', 3);
+  S.tick(state, 1);
+  S.startCooking(state, state.orders[0].id);
+
+  // Seeded directly because the stand only offers this customer's own
+  // ingredients, and the case is about two squares in a row rather than about
+  // which tiles happened to be dealt.
+  state.expression = [{ kind: 'number', value: rat(2) }];
+
+  assert.equal(S.canAccept(state, 'unary'), true);
+  assert.ok(S.pushTile(state, { kind: 'unary', op: 'pow', exponent: 2 }).ok, 'the first square goes on');
+  assert.equal(S.canAccept(state, 'unary'), true, 'a second square must be offered, not greyed out');
+  assert.ok(S.pushTile(state, { kind: 'unary', op: 'pow', exponent: 2 }).ok, 'the second square goes on too');
+
+  // 2 squared is 4, squared again is 16, and a chain that ends on a square is
+  // already a finished dish.
+  assert.equal(S.hasDish(state), true, 'a chain may end on a square, not only on a number');
+  assert.equal(S.runningTotal(state).n, 16);
+});
+
+test('a chain may end on a square or a root', () => {
+  // The generator hands out recipes whose last step is a unary operator in 42%
+  // of Hard level 1 and 66% of Hard level 3. A stand that refused to serve them
+  // made most of Hard unplayable even though the maths stayed correct.
+  const state = freshState('hard', 3);
+  S.tick(state, 1);
+  S.startCooking(state, state.orders[0].id);
+
+  state.expression = [
+    { kind: 'number', value: rat(2) },
+    { kind: 'operator', op: 'add' },
+    { kind: 'number', value: rat(2) },
+  ];
+  assert.ok(S.pushTile(state, { kind: 'unary', op: 'pow', exponent: 2 }).ok);
+  assert.equal(state.expression[state.expression.length - 1].kind, 'unary');
+  assert.equal(S.hasDish(state), true, '2 + 2 squared is a finished dish');
+  assert.equal(S.runningTotal(state).n, 16, 'left to right: 2 + 2 is 4, and 4 squared is 16');
+  assert.equal(S.canAccept(state, 'number'), false, 'a chain waiting for nothing takes no more tiles');
+  assert.equal(S.canAccept(state, 'operator'), true, 'but the player may keep going');
+
+  // A unary step must not break the number/operator alternation, or the stand
+  // accepts a step it then refuses to serve. `2 ² + 7` is as legal as `2 + 7`.
+  state.expression = [
+    { kind: 'number', value: rat(2) },
+    { kind: 'unary', op: 'pow', exponent: 2 },
+  ];
+  assert.ok(S.pushTile(state, { kind: 'operator', op: 'add' }).ok);
+  const extra = state.orders[0].puzzle.ingredients[0];
+  assert.ok(S.pushTile(state, { kind: 'number', value: extra }).ok, 'the stand only offers this customer their own tiles');
+  assert.equal(S.hasDish(state), true, 'a chain that continues after a square is still a dish');
+  assert.equal(
+    toDisplayString(S.runningTotal(state)),
+    toDisplayString(add(rat(4), extra)),
+    'left to right: 2 squared is 4, and only then does the next tile count',
+  );
+});
+
+test('a unary step is judged by the running total, not by the tile behind it', () => {
+  const state = freshState('hard', 3);
+  S.tick(state, 1);
+  S.startCooking(state, state.orders[0].id);
+
+  // `1 + 3` is 4, so the square belongs to the running total. A check on the 3
+  // would refuse a legal move.
+  state.expression = [
+    { kind: 'number', value: rat(1) },
+    { kind: 'operator', op: 'add' },
+    { kind: 'number', value: rat(3) },
+  ];
+  assert.equal(S.runningTotal(state).n, 4);
+  const res = S.pushTile(state, { kind: 'unary', op: 'sqrt' });
+  assert.equal(res.ok, true, 'a root of the running total must be accepted even when the last tile is not a square');
+  assert.equal(S.runningTotal(state).n, 2, 'the plate has to show the value the chain really reaches');
+
+  // And the mirror image: a square that looks legal on its own tile must still
+  // be refused when the running total cannot take it, or the stand fills up with
+  // a chain that can never be served.
+  state.expression = [
+    { kind: 'number', value: rat(1) },
+    { kind: 'operator', op: 'add' },
+    { kind: 'number', value: rat(4) },
+  ];
+  const bad = S.pushTile(state, { kind: 'unary', op: 'sqrt' });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.reason, 'work.invalidRoot');
+  assert.equal(state.expression.length, 3, 'the refused step must not be left on the stand');
+});
+
+test('every puzzle the stand is offered can actually be built on it', () => {
+  // The regression that matters most: the core guarantees a route exists, and
+  // this is the only test that holds the stand to the same promise. Unit tests
+  // used to cover Easy only, where there are no unary operators at all, so a
+  // stand that refused a legal square or could not hold two in a row went
+  // unnoticed while the maths stayed provably correct.
+  for (const [mode, level] of [['medium', 1], ['hard', 1], ['hard', 2], ['hard', 3], ['hard', 4], ['hard', 5]]) {
+    for (let seed = 1; seed <= 120; seed += 1) {
+      const state = freshState(mode, level, seed);
+      S.tick(state, 1);
+      const order = state.orders[0];
+      if (!order) continue;
+      S.startCooking(state, order.id);
+      const recipe = order.puzzle.secretRecipe;
+
+      const steps = [{ label: toDisplayString(recipe.start), res: S.pushTile(state, { kind: 'number', value: recipe.start }) }];
+      for (const step of recipe.steps) {
+        if (step.operand !== undefined) {
+          steps.push({ label: step.op, res: S.pushTile(state, { kind: 'operator', op: step.op }) });
+          steps.push({
+            label: toDisplayString(step.operand),
+            res: S.pushTile(state, { kind: 'number', value: step.operand }),
+          });
+        } else {
+          steps.push({
+            label: `${step.op}${step.exponent ?? ''}`,
+            res: S.pushTile(state, { kind: 'unary', op: step.op, exponent: step.exponent }),
+          });
+        }
+      }
+
+      const refused = steps.filter((s) => !s.res.ok);
+      assert.deepEqual(
+        refused.map((s) => `${s.label} -> ${s.res.reason}`),
+        [],
+        `${mode} L${level} seed ${seed}: the stand refused part of the route to ${toDisplayString(order.puzzle.target)}`,
+      );
+      assert.ok(S.hasDish(state), `${mode} L${level} seed ${seed}: the finished chain is not a dish`);
+      assert.ok(
+        S.isCorrect(state, order),
+        `${mode} L${level} seed ${seed}: the finished chain does not reach the target`,
+      );
+    }
+  }
 });
 
 test('a root of a non-square is refused with a readable reason', () => {
