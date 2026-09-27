@@ -310,7 +310,7 @@ body {
 
 .chip__cook {
   grid-column: 1 / -1;
-  min-height: 32px;
+  min-height: var(--tap-min);
   margin-top: 2px;
   background: var(--butter);
   border: 2px solid var(--ink);

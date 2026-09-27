@@ -94,8 +94,12 @@ sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
   soal Hard level 3 dan 19% level 5, sementara stand menolak unary setelah
   unary. Karena bahan stand adalah subset dari solusi, ada pelanggan yang
   kehilangan seluruh rutenya: level yang secara matematika solvable tetapi
-  mustahil dimainkan. Sekarang `2 ² ²` boleh disusun, sama seperti yang sudah
+  mustahil dimainkan. Sekarang   `2 ² ²` boleh disusun, sama seperti yang sudah
   diperlakukan `evaluate` di core.
+- **Tombol "Masak untuk dia" mendeklarasikan `min-height: 32px`,** di bawah
+  gerbang 44x44px di `AGENTS.md`. Pada pengukuran sebenarnya tombol ini tetap di
+  atas 44px karena isinya, tapi deklarasinya bertentangan dengan aturan
+  dan bisa sewaktu-waktu melintasinya. Sekarang memakai `var(--tap-min)`.
 - **Jam tidak pernah bergerak sama sekali.** `lastTick` di-update *sebelum* cek
   "sudah lewat satu detik belum", sehingga tiap frame 250 ms membuang pecahan
   detik yang sudah terkumpul dan `elapsed` tidak pernah mencapai 1000 ms.
@@ -129,8 +133,15 @@ sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
   `applyOperator` dan `equals` dari core asli, jadi hanya bisa berbeda dari game
   kalau game berbeda dari dirinya sendiri.
 
-
 ### Added
+
+- **Jalur drag-and-drop sekarang diuji otomatis.** Smoke test sebelumnya hanya
+  memakai `element.click()`, jadi tidak satu pun listener `interact.js` di
+  `drag.js` pernah berjalan. Sekarang satu section menarik tile angka, operator
+  biner, dan `²` ke stand dengan pointer event sungguhan, lalu menarik piring ke
+  chip pelanggan dan memastikan skor naik. Gerbang 44x44px di `AGENTS.md` juga
+  ditegakkan di dua lebar layar pada seluruh elemen yang bisa disentuh, bukan
+  hanya tinggi di bawah 32px pada sebagian elemen.
 - **`scripts/smoke-ui.js` bisa memainkan level mana pun.** Loop "main sampai
   overlay muncul" dipecah menjadi `playOneLevel(page, { mode, level })`, jadi
   Medium dan Hard sekarang ikut diuji otomatis, bukan hanya dilihat-lihat

@@ -293,6 +293,35 @@ const READ_HUD = () => ({
 });
 
 /**
+ * Every control a finger has to hit, with its real size on screen.
+ *
+ * AGENTS.md sets 44x44px as the touch minimum, so the check is on both axes and
+ * on the whole element rather than on a convenient subset. The earlier version
+ * of this check only flagged heights under 32px, which is how a 32px "Cook for"
+ * button survived in the primary action of every single customer.
+ */
+const READ_TAP_TARGETS = () => {
+  const selector = [
+    'button',
+    '.chip',
+    '.tile',
+    '.level-card',
+    '.mode-card',
+  ].join(', ');
+  return [...document.querySelectorAll(selector)]
+    .filter((n) => n.getClientRects().length > 0)
+    .map((n) => {
+      const r = n.getBoundingClientRect();
+      return {
+        what: `${n.tagName.toLowerCase()}.${n.className}`.replace(/\s+/g, '.'),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        text: (n.textContent ?? '').trim().slice(0, 18),
+      };
+    });
+};
+
+/**
  * How a full queue of four customers fits the viewport.
  *
  * The chips are cloned from a real one so this measures the real CSS, because
@@ -339,6 +368,87 @@ async function waitForChip(page, timeout = 40000) {
   }
   return null;
 }
+
+/** AGENTS.md touch minimum, on both axes. */
+const TAP_MIN = 44;
+
+async function checkTapTargets(page, where) {
+  const targets = await page.evaluate(READ_TAP_TARGETS);
+  const small = targets.filter((t) => t.w < TAP_MIN || t.h < TAP_MIN);
+  must(
+    small.length === 0,
+    `every control at ${where} is at least ${TAP_MIN}x${TAP_MIN}px`
+    + `${small.length > 0 ? `: ${small.map((t) => `${t.what} "${t.text}" ${t.w}x${t.h}`).join('; ')}` : ''}`,
+  );
+  const tiniest = [...targets].sort((a, b) => Math.min(a.w, a.h) - Math.min(b.w, b.h))[0];
+  if (tiniest) {
+    note(`   smallest control at ${where}: "${tiniest.text}" ${tiniest.w}x${tiniest.h}px`);
+  }
+  return small;
+}
+
+/**
+ * Drag one element onto another with real pointer events, the way a finger does.
+ *
+ * Everything else in this file uses `element.click()`, which never runs a single
+ * line of the `interact.js` listeners in `drag.js`. The movement is broken into
+ * steps because a drag that teleports is not a drag as far as interact.js is
+ * concerned, and it would hide a real phone-only failure.
+ *
+ * `source` is `{ selector, label? }` so a tile can be named rather than merely
+ * pointed at: a used ingredient is still on screen but disabled, and a disabled
+ * button swallows the pointer.
+ */
+async function dragOnto(page, source, target) {
+  const centre = async (spec) => page.evaluate((s) => {
+    const node = [...document.querySelectorAll(s.selector)].find((n) => {
+      if (n.getClientRects().length === 0 || n.disabled) return false;
+      return s.label === undefined || n.textContent === s.label;
+    });
+    if (!node) return null;
+    node.scrollIntoView({ block: 'center', inline: 'center' });
+    const r = node.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, spec);
+
+  const to = await centre(target);
+  const from = await centre(source);
+  if (!from || !to) return false;
+
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(
+      from.x + ((to.x - from.x) * step) / 8,
+      from.y + ((to.y - from.y) * step) / 8,
+    );
+    await wait(25);
+  }
+  await page.mouse.up();
+  await wait(150);
+  return true;
+}
+
+/** A rack tile, named by what it says on it. */
+function tileSource(kind, label) {
+  return {
+    selector: kind === 'number' ? '.rack__numbers .tile' : '.rack__operators .tile',
+    label,
+  };
+}
+
+const WORKSPACE = { selector: '[data-workspace]' };
+
+/** The route from the target and the tiles, computed in the page. */
+const SOLVE_ON_SCREEN = (target, values, ops, maxSteps) => window.__cn.solve(
+  target,
+  values,
+  ops.map((o) => ({ key: o.key, label: o.label, arity: o.kind === 'unary' ? 'unary' : 'binary', exponent: o.exponent })),
+  maxSteps,
+);
+
+/** The stand's own contents, in order, as the player would read them. */
+const READ_STAND = () => [...document.querySelectorAll('.workspace__line .slot')].map((n) => n.textContent);
 
 /** Press the "Cook for" button on a chip, which loads the stand. */
 async function cookFor(page, orderId) {
@@ -457,12 +567,7 @@ async function buildDish(page, chip, { maxSteps, verbose }) {
   if (rack.values.length === 0) return { reason: 'no-stand' };
 
   const plan = await page.evaluate(
-    (t, values, ops, steps) => window.__cn.solve(
-      t,
-      values,
-      ops.map((o) => ({ key: o.key, label: o.label, arity: o.kind === 'unary' ? 'unary' : 'binary', exponent: o.exponent })),
-      steps,
-    ),
+    SOLVE_ON_SCREEN,
     chip.target,
     rack.values,
     rack.ops,
@@ -572,12 +677,102 @@ async function detailedFirstCustomer(page, { maxSteps }) {
 }
 
 /**
- * Play one level from the menu to the level-complete overlay.
+ * Drag and drop, which is the half of the input model the rest of this file
+ * never touches.
+ *
+ * Tap-to-place is the mobile fallback and is covered everywhere else, so this is
+ * the only place the `interact.js` listeners in `drag.js` actually run. Three
+ * things have to work: a number tile dragged onto the stand, a unary tile
+ * dragged onto the stand, and the plate dragged onto a customer to serve.
+ */
+async function dragChecks(page) {
+  console.log('\n--- Drag and drop (pointer path)');
+  await openLevel(page, 'easy', 1);
+  const queue = await waitForChip(page);
+  if (!must(queue !== null, 'a customer walks in before the drag test')) return;
+  const chip = queue.chips[0];
+  await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"] .chip__cook`)?.click(), chip.orderId);
+  await wait(150);
+
+  const band = getBand('easy', 1);
+  const rack = await page.evaluate(READ_RACK);
+  const plan = await page.evaluate(SOLVE_ON_SCREEN, chip.target, rack.values, rack.ops, band.stepMax + 1);
+  if (!must(plan !== null, `the screen offers a route to ${chip.target} to drag along`)) return;
+  const planned = plan.map((p) => p.label);
+
+  for (const step of plan) {
+    must(
+      await dragOnto(page, tileSource(step.kind, step.label), WORKSPACE),
+      `the ${step.kind} tile "${step.label}" can be dragged onto the stand`,
+    );
+  }
+
+  const built = await page.evaluate(() => ({
+    stand: [...document.querySelectorAll('.workspace__line .slot')].map((n) => n.textContent),
+    serveEnabled: !document.querySelector('[data-action="serve"]')?.disabled,
+    plate: document.querySelector('[data-plate-value]')?.textContent ?? '',
+  }));
+  must(
+    built.stand.join(' ') === planned.join(' '),
+    `a chain built only by dragging reads "${built.stand.join(' ')}"`,
+  );
+  must(built.serveEnabled, `a dragged chain can be served (plate "${built.plate}")`);
+
+  const before = await page.evaluate(READ_HUD);
+  must(
+    await dragOnto(page, { selector: '.counter__plate' }, { selector: `.chip[data-order-id="${chip.orderId}"]` }),
+    'the plate can be dropped on the customer',
+  );
+  const after = await page.evaluate(READ_HUD);
+  must(
+    after.score > before.score,
+    `dragging the plate onto the customer serves the dish (${before.score} -> ${after.score})`,
+  );
+  const queueAfter = await page.evaluate(READ_QUEUE);
+  must(
+    !queueAfter.chips.some((c) => c.orderId === chip.orderId),
+    'the served customer leaves after a drag-served dish',
+  );
+
+  console.log('\n--- Drag a square onto the stand (Hard)');
+  await openLevel(page, 'hard', 1);
+  const hardQueue = await waitForChip(page);
+  if (!must(hardQueue !== null, 'a customer walks in for the Hard drag test')) return;
+  await page.evaluate((id) => document.querySelector(`.chip[data-order-id="${id}"] .chip__cook`)?.click(), hardQueue.chips[0].orderId);
+  await wait(150);
+
+  const hardRack = await page.evaluate(READ_RACK);
+  const square = hardRack.ops.find((o) => o.kind === 'unary');
+  if (!must(square !== undefined, `Hard offers a unary tile to drag: ${hardRack.ops.map((o) => o.label).join(' ')}`)) return;
+
+  must(
+    await dragOnto(page, tileSource('number'), WORKSPACE),
+    'a number can be dragged in Hard',
+  );
+  must(
+    await dragOnto(page, tileSource('operator', square.label), WORKSPACE),
+    `a "${square.label}" tile can be dragged`,
+  );
+  const unaryStand = await page.evaluate(READ_STAND);
+  must(
+    unaryStand.length === 2 && unaryStand[1] === square.label,
+    `the square lands on the stand as a unary step ("${unaryStand.join(' ')}")`,
+  );
+  const unaryRack = await page.evaluate(READ_RACK);
+  must(
+    unaryRack.plateValue.startsWith('='),
+    `the plate shows the squared value straight away ("${unaryRack.plateValue}")`,
+  );
+}
+
+/**
+ * The whole level, start to finish.
  *
  * The level only passes when every customer in the roster is served, no customer
  * on screen lacked a route, and the overlay opens. Anything less is a level the
  * player cannot finish, which is the whole reason this function exists.
  */
+
 async function playOneLevel(page, { mode, level, detailed = false }) {
   const band = getBand(mode, level);
   const roster = customersForLevel(level);
@@ -738,6 +933,8 @@ async function main() {
       await playOneLevel(page, combo);
     }
 
+    await dragChecks(page);
+
     console.log('\n--- Language toggle');
     await backToMenu(page);
     await page.click('[data-action="toggle-lang"]');
@@ -832,6 +1029,7 @@ async function main() {
       `the game survives a resize to desktop width (was "${screenBefore}", now "${wide.screen}")`,
     );
     note(`   at 1280px: ${wide.chips} customer chip(s), ${wide.rack} ingredient tile(s)`);
+    checkTapTargets(page, '1280px');
 
     console.log('\n--- Small phone viewport');
     await page.setViewport({ width: 320, height: 568, isMobile: true, hasTouch: true });
@@ -840,17 +1038,13 @@ async function main() {
       screen: document.body.dataset.screen,
       scrollW: document.documentElement.scrollWidth,
       clientW: document.documentElement.clientWidth,
-      smallTargets: [...document.querySelectorAll('.chip__cook, .btn, .tile')]
-        .filter((n) => n.getBoundingClientRect().width > 0 && n.getBoundingClientRect().height > 0)
-        .filter((n) => n.getBoundingClientRect().height < 32)
-        .length,
     }));
     must(narrow.screen === 'game', `the game survives a 320px viewport (screen "${narrow.screen}")`);
     must(
       narrow.scrollW <= narrow.clientW + 1,
       `nothing overflows sideways at 320px (content ${narrow.scrollW}px, viewport ${narrow.clientW}px)`,
     );
-    note(`   controls under 32px tall at 320px: ${narrow.smallTargets}`);
+    checkTapTargets(page, '320px');
 
     const fit = await page.evaluate(READ_QUEUE_FIT);
     if (fit.skipped) {
