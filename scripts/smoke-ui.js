@@ -886,6 +886,42 @@ async function switchChecks(page) {
     secondsRunning < secondsStart,
     `the clock runs again after the question (${secondsStart}s then ${secondsRunning}s)`,
   );
+
+  // The question has to be usable on a small phone, and it is the one piece of
+  // the interface that was never seen at that width: the switch check runs at the
+  // default phone size, and the narrow-phone section of the run happens later
+  // with no dialog open.
+  console.log('\n--- The question is usable on a small phone');
+  await page.setViewport({ width: 320, height: 568, isMobile: true, hasTouch: true });
+  await wait(300);
+  await cookFor(page, busy.orderId);
+  const narrowQuestion = await page.evaluate(() => {
+    const dialog = document.querySelector('[data-overlay="confirm"]');
+    if (!dialog || dialog.hidden) return { open: false };
+    const card = dialog.querySelector('.overlay__card');
+    const buttons = [...dialog.querySelectorAll('.btn')].map((n) => {
+      const r = n.getBoundingClientRect();
+      return { text: n.textContent.trim(), w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    const r = card.getBoundingClientRect();
+    return {
+      open: true,
+      buttons,
+      fits: r.left >= 0 && r.right <= document.documentElement.clientWidth,
+      overflows: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    };
+  });
+  must(narrowQuestion.open, 'the question opens on a 320px screen too');
+  must(narrowQuestion.fits && !narrowQuestion.overflows, 'the question fits a 320px screen with nothing cut off');
+  must(
+    narrowQuestion.buttons.every((b) => b.w >= TAP_MIN && b.h >= TAP_MIN),
+    `both answers are at least ${TAP_MIN}x${TAP_MIN}px on a small phone`
+    + ` (${narrowQuestion.buttons.map((b) => `"${b.text}" ${b.w}x${b.h}`).join(', ')})`,
+  );
+  await page.evaluate(() => document.querySelector('[data-confirm="stay"]')?.click());
+  await wait(200);
+  await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+  await wait(300);
 }
 
 /**

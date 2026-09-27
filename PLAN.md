@@ -17,24 +17,48 @@ Fase 1, 2, 2.5 selesai dan terverifikasi. Fase 3 secara teknis selesai —
 **kelima belas kombinasi mode x level sudah bisa dimainkan sampai tamat secara
 otomatis.** Kita ~3 minggu lebih maju dari jadwal PRD di §10.
 
-**Yang paling penting untuk diketahui sebelum mulai:**
+### Keputusan 27 September 2026
 
-1. **Main di HP asli adalah satu-satunya sisa pekerjaan yang tidak bisa
-   delegate ke siapa pun.** Semua angka di `src/core/difficulty.js` masih
-   tebakan. Formulirnya sudah siap di **`PLAYTEST.md`** — buka, isi, kirim.
-2. **Rubrik lomba belum didapat.** Ini yang paling lambat dan paling di luar
+Semua ini sudah diputuskan. Kalau besok ada yang terdengar seperti ide baru,
+cek dulu daftar ini supaya tidak dibahas ulang.
+
+| Keputusan | Alasan |
+|---|---|
+| Aturan hitung jadi **kaidah operasi**, bukan kiri-ke-kanan | Playtest: `-5 + -2 x -1` terbaca 7 padahal kaidah bilang -3. Kaidah diajarikan di SMP, jadi versi lama mengajarkan aturan yang salah |
+| Drag tile **dipertahankan** | Diperbaiki di sesi ini, dan setelah diperbaiki tile benar-benar mengikuti jari |
+| Drag-serve **dihapus** | Playtest selalu memakai tombol Sajian. Tiga cara menyajikan lebih sulit dipelajari dari satu |
+| Menekan chip = memuat stand, tombol "Masak untuk dia" **dihapus** | Playtest minta elemen lebih sedikit di satu layar |
+| Pindah pelanggan: ≤2 tile bebas, >2 tile **popup konfirmasi**, jam berhenti | Karena satu ketukan kini bisa menghapus hidangan, aturan 11 meminta aksi merusak yang disengaja. Jam berhenti supaya membaca dialog tidak jadi walkout |
+| Kesabaran **tidak diubah** untuk sekarang | Anda bilang "kesulitan normal aja dikurangi" tapi juga tegas tidak meminta angka diubah. Angka menunggu playtest ketiga supaya tidak ada dua kali pengujian dengan game berbeda |
+| Roster per mode | Belum diputuskan, menunggu playtest |
+| Mode tetap 3, bukan 15 level datar | Sudah ditinjau: 3 x 5 = 15 level juga, mode memetakan ke kelas 7/8/9, dan tangga operator per mode adalah alat keamanan solvability |
+
+**Yang terbukti berasal dari playtest, bukan dari mekanik game:**
+
+- 14 bug ditemukan dan diperbaiki, **tidak ada satu pun dari unit test**
+- 12 dari 15 level ternyata tidak pernah bisa tamat
+- 42-66% soal Hard tidak bisa diportion
+- Rata-rata 43-100% soal punya jalan pintas yang jauh lebih pendek dari rantai
+  yang dirancang, di semua 15 rung
+- Drag tidak pernah terlihat bergerak, dan drop-nya diam-diam gagal
+
+### Urutan besok
+
+1. **Anda playtest** dengan alur yang sudah berubah, isi `PLAYTEST.md`, kirim.
+2. **Paralel: saya kerjakan kaidah operasi** (bagian 4 di bawah), karena tidak
+   bergantung pada angka spawner.
+3. Setelah data playtest masuk: kalibrasi angka (bagian 2).
+
+### Yang paling penting untuk diketahui sebelum mulai
+
+1. **Rubrik lomba belum didapat.** Ini yang paling lambat dan paling di luar
    kendali. Sudah diminta ke panitia? Kalau belum, hari ini juga.
-3. **Jangan percaya test yang hanya main Easy level 1.** Sesi ini membuktikan
-   itu: 12 dari 15 level tidak pernah bisa tamat, dan 42-66% soal Hard tidak
-   bisa diportion. Test yang hanya mengecek konfigurasi melewati 12 dari 15
-   level. Kalau sebuah level belum pernah dimainkan dari menu sampai overlay,
-   ia belum terbukti.
-4. **Materi submission belum dimulai sama sekali.** Video demo butuh rekaman
-   layar yang bisa diambil sekalian dari playtest. Isi deskripsi dan checklist
-   sudah ada di `SUBMISSION.md`.
-5. **Drag baru diperbaiki di Fase 1.** Playtest berikutnya adalah kesempatan
-   pertama ada yang benar-benar mencobanya. Kalau masih tidak terpakai setelah
-   itu, baru layak dibapus.
+2. **Materi submission belum dimulai.** Deskripsi dan checklist sudah ada di
+   `SUBMISSION.md`, tapi video demo butuh rekaman layar dari playtest.
+3. **Jangan percaya test yang hanya main Easy level 1.** Kalau sebuah level
+   belum pernah dimainkan dari menu sampai overlay, ia belum terbukti.
+4. **Dialog konfirmasi belum pernah diuji di 320px.** Smoke test membukanya di
+   390px. Kalau playtest pakai HP kecil, perhatikan itu.
 
 Urutan pekerjaan:
 
@@ -42,8 +66,7 @@ Urutan pekerjaan:
 
 Ikuti **`PLAYTEST.md`**: lima run (Easy L1, Easy L5, **Hard L1**, Medium L1,
 Hard L3), isi formulirnya, kirim balik. Sekalian rekam layar 30-60 detik per run
-untuk video demo. Hard L1 dipindah ke posisi ketiga supaya rasa "terlalu
-gampang" yang paling menentukan terkumpul lebih dulu.
+untuk video demo.
 
 **Cara membuka game di HP:** `python -m http.server 8099 --bind 0.0.0.0` di
 `C:\Users\ASUS\Documents\cooking_number`, lalu buka `http://192.168.1.6:8099/`
@@ -61,9 +84,10 @@ karena salah klik.
       Semuanya di satu file, jadi tidak ada logika yang tersentuh.
 - [ ] Putuskan roster per mode atau satu tangga bersama (lihat open item di
       bawah).
-- [ ] Perpendek alur lima langkah kalau playtest menunjukkan sering salah ketuk
-      di langkah pertama.
 - [ ] Perbaiki teks i18n yang belum natural saat dibaca.
+- [ ] Kalau playtest menunjukkan mengetuk chip masih membingungkan tanpa
+      tombol, pertimbangkan penanda tambahan di stand. Jangan kembalikan
+      tombolnya sebelum jelas apa yang kurang.
 
 ### 3. Mockup alur - [x] selesai
 
@@ -72,21 +96,26 @@ karena salah klik.
 - [x] Popup konfirmasi pindah pelanggan kalau stand berisi lebih dari 2 tile,
       dan jam berhenti selama popup terbuka
 - [x] Drag-serve dihapus; tile masih bisa diseret ke stand
-- [ ] **Putuskan**: masih ada kalanya serve hanya lewat tombol Sajian (satu
-      jalur, tidak bisa salah), atau ketuk piring ditambahkan sebagai kedua
-      jalur (  lebih cepat di layar kecil, tapi dua tempat untuk dipelajari).
-  Playtest berikutnya yang memutuskan.
+- [ ] **Putuskan setelah playtest**: apakah menyajikan cukup lewat tombol
+      Sajian saja (satu jalur, tidak mungkin salah), atau mengetuk piring
+      ditegaskan sebagai jalur kedua (lebih cepat di layar kecil, tapi dua
+      tempat untuk dipelajari). Playtest kedua yang memutuskan.
 
 ### 4. Kaidah operasi - 1-2 hari
 
 Sudah diputuskan, belum dikerjakan. Menggantikan left-to-right yang dikunci di
 PRD §4 dan AGENTS.md aturan 3, jadi tiga dokumen itu ikut direvisi.
 
-- [ ] `evaluate.js` parse rantai dengan kaidah operasi
+- [ ] `evaluate.js` parse rantai dengan kaidah operasi. Piring tetap menampilkan
+      nilai sebenarnya, cuma melompat, bukan rusak
 - [ ] `generator.js`: `x` dan `:` tidak boleh diikuti `+` atau `-` dalam satu
       rantai, supaya peel backward tetap valid
 - [ ] Solver smoke test ikut kaidah, plus test regresi `2 + 3 x 4` = 14
-- [ ] Semua teks "left-to-right" diganti jadi kaidah operasi
+- [ ] Semua teks "left-to-right" diganti jadi kaidah operasi di i18n, README,
+      AGENTS.md aturan 3, dan PRD §4
+- [ ] **Pastikan jalan pintas soal tidak makin banyak.** Menghormati kaidah
+      menambah cara mencapai target, jadi proporsi soal yang bisa diselesaikan
+      dalam satu atau dua langkah harus diukur ulang sebelum dan sesudah
 
 ### 5. Submission - 3-4 jam (bisa paralel dengan langkah 1-4)
 

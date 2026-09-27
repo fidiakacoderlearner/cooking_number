@@ -98,8 +98,10 @@ mengikuti Kurikulum yang berbeda.
   waktu, dan bahannya milik pesanan itu saja. Kalau bahan semua pelanggan
   bercampur, pemain bisa menghabiskan bahan milik satu pesanan untuk pesanan
   lain dan membuat level mustahil diselesaikan.
-- **Lima langkah, eksplisit.** Pilih pelanggan, tekan Masak untuk dia, masak,
-  hidangan jadi, sajikan.
+- **Empat langkah, eksplisit.** Ketuk pelanggan untuk mulai masak, susun
+  rantainya, sajikan. Kalau sudah menyusun beberapa kartu lalu mengetuk
+  pelanggan lain, game menanyakan dulu, dan jam berhenti selama pertanyaan itu
+  sehingga tidak ada yang walkout karena sedang membaca.
 - **Kesabaran per pelanggan.** Semua timer berjalan bersamaan, dan hitung
   mundur pelanggan berikutnya selalu terlihat di layar.
 - **Spawner berhenti, bukan menolak.** Kalau layar penuh, pelanggan berikutnya
@@ -156,12 +158,12 @@ Sengaja dituliskan karena lebih mudah ditanyakan juri daripada ditemukan sendiri
 - **Angka tingkat kesulitan belum final.** Kesabaran pelanggan dan interval
   kedatangan masih titik awal. Playtest di perangkat sungguhan sedang dilakukan
   dan hasilnya yang menentukan angka akhirnya.
-- **Barisan pelanggan pada layar sangat kecil.** Pada lebar 320px, empat
-  pelanggan membutuhkan 414px, jadi dua di antaranya berada di luar layar dan
-  harus digeser. Target sentuhnya aman, tapi masih diverifikasi apakah pemain
-  benar-benar menyadari pelanggan keempat yang datang.
-- **Drag adalah jalur yang lebih kaya, bukan satu-satunya.** Belum terukur di
-  perangkat sungguhan apakah drag merebut scroll halaman.
+- **Maksimal tiga pelanggan menunggu sekaligus.** Dibatasi karena pada lebar
+  320px, empat pelanggan membutuhkan 414px sehingga dua di antaranya berada di
+  luar layar.
+- **Menyeret hidangan ke pelanggan sudah dihapus.** Dulu ada tiga cara
+  menyajikan, dan playtest selalu memakai tombol Sajian. Sekarang menyajikan
+  lewat tombol atau mengetuk piring; tile masih bisa diseret ke stand.
 - **Aset visual masih placeholder.** Datar dan geometris, dibuat khusus supaya
   bisa diganti ilustrasi tim tanpa menyentuh kode.
 - **Tidak ada server dan tidak ada akun.** Progres disimpan di `localStorage`
