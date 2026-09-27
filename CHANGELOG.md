@@ -94,7 +94,7 @@ sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
   soal Hard level 3 dan 19% level 5, sementara stand menolak unary setelah
   unary. Karena bahan stand adalah subset dari solusi, ada pelanggan yang
   kehilangan seluruh rutenya: level yang secara matematika solvable tetapi
-  mustahil dimainkan. Sekarang   `2 ² ²` boleh disusun, sama seperti yang sudah
+  mustahil dimainkan. Sekarang `2 ² ²` boleh disusun, sama seperti yang sudah
   diperlakukan `evaluate` di core.
 - **Tombol "Masak untuk dia" mendeklarasikan `min-height: 32px`,** di bawah
   gerbang 44x44px di `AGENTS.md`. Pada pengukuran sebenarnya tombol ini tetap di

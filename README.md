@@ -69,7 +69,8 @@ assets/placeholder/     WebP datar, siap diganti aset tim
 vendor/                 interact.js 1.10.27
 scripts/                alat development
 test/                   unit test (node:test, tanpa dependency)
-PLAYTEST.md             formulir playtest HP + protocol menjalankan game di HP
+PLAYTEST.md             formulir playtest HP dan protocol menjalankan game di HP
+SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 ```
 
 ## Keputusan desain yang sudah dikunci
