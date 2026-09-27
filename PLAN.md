@@ -262,14 +262,15 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
       menyajikan 4 pelanggan, bukan 6. Playtest yang memutuskan: kalau Hard L1
       terasa terlalu tipis atau terlalu singkat, roster per mode adalah dial
       pertama yang diputar.
-- [ ] **Tangga operator biner per level belum diterapkan di rak.**
-      `assets.js` menaruh keempat operator biner di setiap level dan mengabaikan
-      `band.binaryOps`, jadi Easy L1 menampilkan `x` dan `/` padahal tidak ada
-      soal Easy L1 yang memakainya. Generator sudah membatasi dengan benar, jadi
-      ini tidak merusak solvability, hanya membuat level 1 tidak sesederhana
-      yang dirancang PRD §5.1. Operator unary sudah benar. Perlu diperbaiki
-      **sebelum playtest**, kalau tidak data playtest untuk 4 dari 15 level
-      mengukur game yang salah.
+- [x] **Tangga operator biner per level sudah diterapkan di rak.**
+      `assets.js` pernah menaruh keempat operator biner di setiap level dan
+      mengabaikan `band.binaryOps`, jadi Easy L1 menampilkan `x` dan `/` padahal
+      tidak ada soal Easy L1 yang memakainya. Generator sudah membatasi dengan
+      benar, jadi solvability tidak pernah rusak; yang rusak adalah level 1 yang
+      tidak sesederhana yang dirancang PRD §5.1. Sudah diperbaiki **sebelum
+      playtest**, jadi semua 15 level yang akan diukur adalah game yang
+      benar-benar dimaksud. Ditahan oleh `test/assets.test.js` dan assertion
+      smoke test per level.
 - [ ] **Mode tetap tiga, bukan 15 level datar.** Sudah ditinjau dan
       dipertahankan: 3 x 5 = 15 level juga, mode memetakan ke kelas target
       7/8/9 (PRD §5.1) dan kartu mode sudah menampilkannya, dan tangga operator

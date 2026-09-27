@@ -42,12 +42,18 @@ export const OPERATORS = {
   sqrt: { key: 'sqrt', symbol: '\u221a', labelKey: 'op.sqrt', arity: 'unary' },
 };
 
-const BASE_BINARY = ['add', 'sub', 'mul', 'div'];
-
-/** Operators offered per mode. Sourced from the core difficulty bands so the
- *  UI can never offer an operator the generator did not plan for. */
+/**
+ * Operators offered at one rung of the ladder, binary and unary.
+ *
+ * Read from the band rather than from a fixed list, because the generator is
+ * restricted to the same band. A version of this function that handed out all
+ * four binary operators regardless put times and divide on the Easy level 1
+ * rack, where no Easy level 1 puzzle ever uses them: solvable, but not the calm
+ * tutorial PRD 5.1 asks for, and the tiles on screen no longer matched the
+ * puzzle.
+ */
 export function operatorsForMode(band) {
-  const list = BASE_BINARY.map((key) => OPERATORS[key]);
+  const list = (band.binaryOps ?? []).map((key) => OPERATORS[key]);
 
   for (const opKey of band.unaryOps ?? []) {
     if (opKey === 'pow') {

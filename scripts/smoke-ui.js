@@ -517,6 +517,12 @@ async function toggleLanguage(page) {
  * next one would make the test depend on the test before it. The stored value
  * is the highest unlocked level, so seeding it is the same thing the game does
  * when a level is completed, and it only ever touches the mode under test.
+ *
+ * Every level gets a freshly loaded page, not just the locked ones. A run of
+ * fifteen levels keeps one renderer alive for the better part of an hour on
+ * this machine, and letting that session run long enough is what made the page
+ * die mid-level in the first place. Reloading costs a second per level and
+ * removes the whole class of flakiness.
  */
 async function openLevel(page, mode, level) {
   if (level > 1) {
@@ -534,9 +540,9 @@ async function openLevel(page, mode, level) {
       mode,
       level,
     );
-    await page.reload({ waitUntil: 'networkidle0' });
-    await page.evaluate(PAGE_HELPERS);
   }
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.evaluate(PAGE_HELPERS);
 
   await backToMenu(page);
   await page.click(`[data-mode="${mode}"]`);
@@ -562,9 +568,30 @@ async function openLevel(page, mode, level) {
  * because without that check the test can quietly pass a wrong dish to the
  * serve step and blame the game for it.
  */
-async function buildDish(page, chip, { maxSteps, verbose }) {
+async function buildDish(page, chip, { maxSteps, verbose, band, mode, level }) {
   const rack = await page.evaluate(READ_RACK);
   if (rack.values.length === 0) return { reason: 'no-stand' };
+
+  // The rack and the generator have to read the same operator band. A rack that
+  // offers tiles no puzzle in this level ever uses is a broken ladder, and this
+  // is the only check standing between that and a player's screen.
+  if (band) {
+    const offered = rack.ops.filter((o) => o.kind !== 'unary').map((o) => o.key);
+    const allowed = [...band.binaryOps];
+    check(
+      offered.join(' ') === allowed.join(' '),
+      `${mode} L${level}: the rack offers exactly the operators this level allows`
+      + ` (${offered.join(' ')} offered, ${allowed.join(' ')} expected)`,
+      { verbose },
+    );
+    const strays = rack.ops.filter((o) => o.kind === 'unary' && !band.unaryOps.includes(o.key));
+    check(
+      strays.length === 0,
+      `${mode} L${level}: the rack offers no unary operator this level has not unlocked`
+      + `${strays.length > 0 ? ` (${strays.map((o) => o.label).join(' ')})` : ''}`,
+      { verbose },
+    );
+  }
 
   const plan = await page.evaluate(
     SOLVE_ON_SCREEN,
@@ -626,7 +653,7 @@ async function buildDish(page, chip, { maxSteps, verbose }) {
  * Everything after it is the same thing again and faster, so those checks are
  * silent unless they break.
  */
-async function detailedFirstCustomer(page, { maxSteps }) {
+async function detailedFirstCustomer(page, { maxSteps, band, mode, level }) {
   const first = await waitForChip(page);
   if (!must(first !== null, 'a customer walks in on its own')) throw new Error('no customer arrived');
   ok(`   first customer wants ${first.chips[0].target}, patience ${first.chips[0].seconds}s`);
@@ -653,7 +680,7 @@ async function detailedFirstCustomer(page, { maxSteps }) {
   );
   must(rack.ops.length >= 2, `the rack offers operators: ${rack.ops.map((o) => o.label).join(' ')}`);
 
-  const built = await buildDish(page, chip, { maxSteps, verbose: true });
+  const built = await buildDish(page, chip, { maxSteps, verbose: true, band, mode, level });
   if (built.reason) throw new Error(`${built.reason}: ${built.detail}`);
   ok(`   solution on screen: ${built.plan.map((p) => p.label).join(' ')}`);
 
@@ -773,7 +800,7 @@ async function dragChecks(page) {
  * player cannot finish, which is the whole reason this function exists.
  */
 
-async function playOneLevel(page, { mode, level, detailed = false }) {
+async function runOneLevel(page, { mode, level, detailed = false }) {
   const band = getBand(mode, level);
   const roster = customersForLevel(level);
   const maxSteps = band.stepMax + 1;
@@ -782,7 +809,7 @@ async function playOneLevel(page, { mode, level, detailed = false }) {
   console.log(`\n--- Play ${label} (roster ${roster}, operators ${band.binaryOps.join(' ')} ${band.unaryOps.join(' ')}, up to ${maxSteps} steps)`);
   must(await openLevel(page, mode, level), `${label}: the game screen opens`);
 
-  let served = detailed ? await detailedFirstCustomer(page, { maxSteps }) : 0;
+  let served = detailed ? await detailedFirstCustomer(page, { maxSteps, band, mode, level }) : 0;
   let lost = 0;
   let unsolvable = 0;
   let failuresHere = 0;
@@ -803,7 +830,7 @@ async function playOneLevel(page, { mode, level, detailed = false }) {
     await cookFor(page, chip.orderId);
 
     const failuresBefore = failures;
-    const built = await buildDish(page, chip, { maxSteps, verbose: false });
+    const built = await buildDish(page, chip, { maxSteps, verbose: false, band, mode, level });
     if (failures !== failuresBefore) failuresHere += 1;
     if (built.reason) {
       if (built.reason === 'no-stand') {
@@ -843,10 +870,41 @@ async function playOneLevel(page, { mode, level, detailed = false }) {
   return { served, lost, unsolvable };
 }
 
+/**
+ * Play one level, and play it again if the browser dies.
+ *
+ * A long run of fifteen levels keeps one tab and one browser alive for the best
+ * part of an hour, and on this machine that occasionally ends with the page
+ * dying mid-level: a detached frame, a destroyed execution context, a closed
+ * target. None of those say anything about the game, so a level that dies that
+ * way gets one clean retry from a freshly loaded page. A genuine game failure
+ * never looks like this, so nothing real is hidden by the retry.
+ */
+async function playOneLevel(page, combo) {
+  const BROWSER_DEATH = /detached Frame|Execution context|Target closed|Protocol error|Target closed|Navigating frame/i;
+  try {
+    return await runOneLevel(page, combo);
+  } catch (error) {
+    if (!BROWSER_DEATH.test(error.message)) throw error;
+    note(`${combo.mode} L${combo.level}: the browser dropped the page (${error.message}), retrying once`);
+    await page.reload({ waitUntil: 'networkidle0' }).catch(() => {});
+    await page.evaluate(PAGE_HELPERS).catch(() => {});
+    return runOneLevel(page, combo);
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Command line
  * ------------------------------------------------------------------ */
 
+/**
+ * Which levels to play.
+ *
+ * The flags compose the way someone would expect: `--only hard --level 4` is
+ * Hard level 4, not "Hard, intersected with the default list". The bare run
+ * stays the four level default so the quick gate does not quietly become a
+ * forty minute one.
+ */
 function parseArgs(argv) {
   const args = argv.slice(2);
   const valueOf = (flag) => {
@@ -854,23 +912,34 @@ function parseArgs(argv) {
     return at === -1 ? null : args[at + 1] ?? null;
   };
 
-  let combos = DEFAULT_COMBOS.map((c) => ({ ...c }));
-  if (args.includes('--all')) {
-    combos = [];
-    for (const mode of ['easy', 'medium', 'hard']) {
-      for (let level = 1; level <= 5; level += 1) combos.push({ mode, level });
-    }
-    combos[0] = { ...combos[0], detailed: true };
-  }
-
+  const all = args.includes('--all');
   const only = valueOf('--only');
   const level = valueOf('--level');
-  if (only) combos = combos.filter((c) => c.mode === only);
-  if (level) combos = combos.filter((c) => c.level === Number(level));
+
+  let combos;
+  if (!all && !only && !level) {
+    combos = DEFAULT_COMBOS.map((c) => ({ ...c }));
+  } else if (only && level) {
+    combos = [{ mode: only, level: Number(level) }];
+  } else if (all) {
+    combos = [];
+    for (const mode of ['easy', 'medium', 'hard']) {
+      for (let n = 1; n <= 5; n += 1) combos.push({ mode, level: n });
+    }
+    if (only) combos = combos.filter((c) => c.mode === only);
+    if (level) combos = combos.filter((c) => c.level === Number(level));
+  } else {
+    combos = DEFAULT_COMBOS.map((c) => ({ ...c }));
+    if (only) combos = combos.filter((c) => c.mode === only);
+    if (level) combos = combos.filter((c) => c.level === Number(level));
+  }
 
   if (combos.length === 0) {
     console.error(`no level matches --only ${only ?? '*'} --level ${level ?? '*'}`);
     process.exit(1);
+  }
+  if (combos.length > 1 && !combos.some((c) => c.detailed)) {
+    combos[0] = { ...combos[0], detailed: true };
   }
   return combos;
 }
@@ -993,18 +1062,20 @@ async function main() {
     const easyProgress = await page.evaluate(() => Number(JSON.parse(localStorage.getItem('cn.progress') ?? '{}').easy ?? 1));
     const lockedAfter = await page.$$eval('.level-card.is-locked', (ns) => ns.length);
     must(
-      easyProgress >= 2,
-      `finishing Easy level 1 recorded progress (${easyProgress})`,
-    );
-    must(
       lockedAfter === 5 - easyProgress,
       `the level grid matches the progress that was earned (${lockedAfter} locked, easy level ${easyProgress} unlocked)`,
     );
-    const levelTwoEnabled = await page.$eval(
-      '.level-card[data-level="2"]',
-      (n) => !n.disabled,
-    );
-    must(levelTwoEnabled, 'level 2 is now playable');
+
+    // Finishing Easy level 1 is what unlocks Easy level 2. A filtered run may
+    // never have played it, and then there is nothing to assert beyond the grid
+    // agreeing with the stored progress, which is checked above.
+    if (combos.some((c) => c.mode === 'easy' && c.level === 1)) {
+      must(easyProgress >= 2, `finishing Easy level 1 recorded progress (${easyProgress})`);
+      const levelTwoEnabled = await page.$eval('.level-card[data-level="2"]', (n) => !n.disabled);
+      must(levelTwoEnabled, 'level 2 is now playable');
+    } else {
+      note('   this run did not play Easy level 1, so there is no progress to check');
+    }
 
     console.log('\n--- Desktop viewport');
     await page.click('.level-card[data-level="1"]');
@@ -1066,6 +1137,9 @@ async function main() {
     must(consoleErrors.length === 0, `no console errors${consoleErrors.length ? `: ${consoleErrors.join(' | ')}` : ''}`);
     must(pageErrors.length === 0, `no uncaught page errors${pageErrors.length ? `: ${pageErrors.join(' | ')}` : ''}`);
     must(failedRequests.length === 0, `no failed requests${failedRequests.length ? `: ${failedRequests.join(' | ')}` : ''}`);
+    // A crashed renderer is not a game failure, but it must never hide as a
+    // silent pass either.
+    must(pageCrashes.length === 0, `the page never crashed${pageCrashes.length ? `: ${pageCrashes.join(' | ')}` : ''}`);
   } catch (error) {
     fail(`the run stopped early: ${error.message}`);
     for (const crash of pageCrashes) fail(`the page crashed: ${crash}`);

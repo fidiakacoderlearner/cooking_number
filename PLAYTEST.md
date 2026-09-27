@@ -53,7 +53,7 @@ Lima run, urutan ini, sekitar 90 detik per level.
 
 | # | Run | Kenapa run ini |
 |---|---|---|
-| 1 | Easy L1 | Baseline. Kalau ini tidak terasa jelas, yang lain tidak akan terasa. |
+| 1 | Easy L1 | Baseline. Hanya ada dua operator, `+` dan `-`. Kalau ini tidak terasa jelas, yang lain tidak akan terasa |
 | 2 | Easy L5 | Level termudah yang penuh: 8 pelanggan, angka besar, `÷` aktif. |
 | 3 | Medium L1 | Pecahan masuk. Tile `0.5` dan `1/3` pertama kali muncul. |
 | 4 | Hard L1 | Pangkat `²` dan `³` masuk, plus spawner paling cepat. |

@@ -53,6 +53,17 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **Tangga operator biner per level tidak pernah diterapkan.** `operatorsForMode`
+  menaruh keempat operator biner di setiap level dan tidak pernah membaca
+  `band.binaryOps`, jadi Easy level 1 menampilkan `x` dan `/` padahal tidak ada
+  satu pun soal Easy level 1 yang memakainya. Generator sudah membatasi dengan
+  benar, jadi solvability tidak tersentuh dan tidak ada level yang mustahil —
+  tetapi level 1 bukan lagi tutorial alami yang dirancang PRD §5.1, dan komentar
+  di `assets.js` maupun `view.js` yang mengklaim keduanya sinkron memang salah.
+  Rak sekarang dibangun dari band. Test baru `test/assets.test.js` menahan
+  kontrak ini, dan smoke test memeriksa per level bahwa yang di rak persis sama
+  dengan yang diizinkan band.
+
 Ditemukan lewat review, `scripts/smoke-ui.js`, dan test regresi baru — bukan
 oleh unit test yang sudah ada. Test sebelumnya hanya mencakup core plus
 Easy level 1, yang kebetulan merupakan satu-satunya level tanpa operator
@@ -100,6 +111,15 @@ sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
   gerbang 44x44px di `AGENTS.md`. Pada pengukuran sebenarnya tombol ini tetap di
   atas 44px karena isinya, tapi deklarasinya bertentangan dengan aturan
   dan bisa sewaktu-waktu melintasinya. Sekarang memakai `var(--tap-min)`.
+- **Smoke test flak karena halaman bertahan terlalu lama.** Satu tab dan satu
+  browser hidup hampir satu jam untuk lima belas level, dan di mesin ini
+  halamannya kadang mati di tengah level: detached frame, execution context
+  yang hilang, atau target yang tertutup. Sekarang setiap level mendapat
+  halaman yang baru dimuat, dan level yang mati karena itu dicoba sekali lagi
+  dari halaman bersih. Kegagalan game yang sebenarnya tidak pernah berbentuk
+  seperti itu, jadi tidak ada yang disembunyikan oleh percobaan ulang.
+  `--only <mode> --level <n>` juga sekarang berarti level itu secara literal,
+  bukan irisan dari daftar default.
 - **Jam tidak pernah bergerak sama sekali.** `lastTick` di-update *sebelum* cek
   "sudah lewat satu detik belum", sehingga tiap frame 250 ms membuang pecahan
   detik yang sudah terkumpul dan `elapsed` tidak pernah mencapai 1000 ms.
@@ -138,10 +158,14 @@ sepanjang waktu; yang belum pernah diuji adalah apakah stand bisa
 - **Jalur drag-and-drop sekarang diuji otomatis.** Smoke test sebelumnya hanya
   memakai `element.click()`, jadi tidak satu pun listener `interact.js` di
   `drag.js` pernah berjalan. Sekarang satu section menarik tile angka, operator
-  biner, dan `²` ke stand dengan pointer event sungguhan, lalu menarik piring ke
-  chip pelanggan dan memastikan skor naik. Gerbang 44x44px di `AGENTS.md` juga
-  ditegakkan di dua lebar layar pada seluruh elemen yang bisa disentuh, bukan
-  hanya tinggi di bawah 32px pada sebagian elemen.
+  biner, dan pangkat ke stand dengan pointer event sungguhan, lalu menarik
+  piring ke chip pelanggan dan memastikan skor naik. Gerbang 44x44px di
+  `AGENTS.md` juga ditegakkan di dua lebar layar pada seluruh elemen yang bisa
+  disentuh, bukan hanya tinggi di bawah 32px pada sebagian elemen.
+- **`test/assets.test.js`** — palet operator rak diuji sebagai kontrak: rak harus
+  menawarkan persis operator yang diizinkan band, tangga tidak boleh kehilangan
+  operator antar level, pratinjau menu harus menampilkan set terlebar, dan
+  pangkat yang ditawarkan harus tetap di dalam batas eksponen band.
 - **`scripts/smoke-ui.js` bisa memainkan level mana pun.** Loop "main sampai
   overlay muncul" dipecah menjadi `playOneLevel(page, { mode, level })`, jadi
   Medium dan Hard sekarang ikut diuji otomatis, bukan hanya dilihat-lihat

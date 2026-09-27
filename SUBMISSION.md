@@ -39,7 +39,7 @@ kualitas" diambil dari kode dan dari hasil menjalankan test, bukan klaim.
 |---|---|
 | Latihan operasi hitung terasa seperti lembar kerja | Setiap soal punya tenggat nyata. Pelanggan menunggu, dan kalau dia pergi itu terasa |
 | Siswa sering salah karena lupa aturan precedence | Aturan hitung dikunci left-to-right dan nilai berjalan selalu ditampilkan. Tidak ada precedence yang harus diingat |
-| Materi baru muncul mendadak tanpa persiapan | Pangkat dan akar bertambah satu per satu. Easy tidak pernah memakai keduanya, Medium mendapat pangkat dua di level 4, Hard mendapat akar kuadrat di level 3. Catatan jujur ada di bagian 8 |
+| Materi baru muncul mendadak tanpa persiapan | Operator bertambah satu per satu, jadi game dimulai dari dua operator saja lalu membuka yang baru seiring level naik. Easy tidak pernah memakai pangkat maupun akar, Medium mendapat pangkat dua di level 4, Hard mendapat akar kuadrat di level 3 |
 | Sering diminta jawaban benar, padahal prosesnya yang perlu dilatih | Memasukkan hidangan yang salah itu mungkin dan walkout adalah konsekuensi yang sah. Tapi nilai akhir selalu terlihat di piring sebelum disajikan, dan tidak ada aksi merusak tanpa disengaja |
 | Tidak bisa dipakai di perangkat sekolah | Jalur masuknya browser. Ada yang bisa dipakai tanpa internet setelah halaman terbuka, dan tidak ada yang diambil dari server pihak ketiga saat permainan berjalan |
 | Drag kurang responsif di layar kecil | Mengetuk tile langsung menambahkannya ke stand selalu tersedia dan selalu berhasil, jadi tidak ada tugas yang mustahil dikerjakan hanya dengan mengetuk |
@@ -51,18 +51,21 @@ kualitas" diambil dari kode dan dari hasil menjalankan test, bukan klaim.
 1. **Chaining, bukan kolom ketik.** Pemain menyusun rantai di stand, bukan
    mengetik `2 + 3 x 4`. Nilai berjalan selalu terlihat, jadi kesalahan bisa
    dilacak di titik salahnya.
-2. **Tidak ada jawaban yang dihafal.** Soal dibuat dengan cara berjalan mundur
+2. **Dimulai dari dua operator.** Easy level 1 hanya menawarkan tambah dan
+   kurang, dan operator baru terbuka seiring level naik. Layar pertama tidak
+   pernah dipenuhi keypad penuh.
+3. **Tidak ada jawaban yang dihafal.** Soal dibuat dengan cara berjalan mundur
    dari target. Sistem menentukan dulu satu solusi rahasia, lalu memilih
    angka-angka yang menjadi bahan. Setiap soal punya rute yang benar dan
    beberapa angka pengecoh yang tidak dipakai, jadi pemain harus memilih bahan.
-3. **Jaminan solvability dibuktikan, bukan diharapkan.** Sebelum soal dikirim ke
+4. **Jaminan solvability dibuktikan, bukan diharapkan.** Sebelum soal dikirim ke
    pemain, resep solusinya dievaluasi ulang oleh evaluator yang sama dengan yang
    dipakai pemain. Kalau tidak cocok, target dibuang dan soal lain dibuat.
-4. **Kegagalan yang adil.** Walkout mengurangi skor yang bisa didapat, tidak
+5. **Kegagalan yang adil.** Walkout mengurangi skor yang bisa didapat, tidak
    menghapus apa pun. Tidak ada nyawa, penalti, atau level gagal. Salah ketuk
    tidak pernah menghapus hidangan yang sedang dibangun. Aturan ini ditulis
    eksplisit di `AGENTS.md` dan diuji otomatis.
-5. **Pintu masuk sesuai kelas.** Tiga mode dipetakan ke kelas target 7, 8, dan
+6. **Pintu masuk sesuai kelas.** Tiga mode dipetakan ke kelas target 7, 8, dan
    9, dan operator yang ditawarkan mode itu dibatasi oleh generator soal. Siswa
    kelas 7 tidak akan pernah melihat pangkat maupun akar kuadrat, karena tidak
    ada soal Easy yang memakainya.
@@ -73,13 +76,15 @@ kualitas" diambil dari kode dan dari hasil menjalankan test, bukan klaim.
 
 | Mode | Kelas | Yang benar-benar ditawarkan ke pemain | Kapan materi baru masuk |
 |---|---|---|---|
-| Easy | 7 | Tambah, kurang, kali, bagi. Bilangan bulat termasuk negatif | Pangkat dan akar tidak pernah muncul di mode ini |
-| Medium | 8 | Tambah, kurang, kali, bagi, dan pecahan desimal | Pangkat dua mulai level 4 |
-| Hard | 9 | Tambah, kurang, kali, bagi, pangkat dua, pangkat tiga | Akar kuadrat mulai level 3 |
+| Easy | 7 | Level 1 `+ -`, level 2 sampai 5 tambah kali, lalu bagi. Bilangan bulat termasuk negatif | Pangkat dan akar tidak pernah muncul di mode ini |
+| Medium | 8 | Level 1 `+ - x`, level 2 tambah bagi, level 4 tambah pangkat dua. Pecahan desimal sejak level 1 | Pangkat dua mulai level 4 |
+| Hard | 9 | Semua operator biner sejak level 1, pangkat dua dan tiga sejak level 1 | Akar kuadrat mulai level 3 |
 
-Yang membuat tiap mode dijamin solvable adalah pembatasan ini: generator soal
-dan rak memakai himpunan operator yang sama, jadi tidak mungkin ada soal yang
-meminta pemain memakai operator yang tidak ada di tangannya.
+Operator bertambah satu per satu seiring level naik, sehingga level 1 menjadi
+tutorial alami: game dimulai dari dua operator saja. Pembatasan ini juga yang
+menjamin setiap mode selalu solvable, karena generator soal dan rak memakai
+himpunan operator yang sama, jadi tidak mungkin ada soal yang meminta pemain
+memakai operator yang tidak ada di tangannya.
 
 Pemetaan kelas di atas mengikuti urutan materi bilangan di SMP. Sebaiknya
 dikonfirmasi ke guru atau pembimbing tim sebelum submission, karena tim bisa
@@ -151,12 +156,6 @@ Sengaja dituliskan karena lebih mudah ditanyakan juri daripada ditemukan sendiri
 - **Angka tingkat kesulitan belum final.** Kesabaran pelanggan dan interval
   kedatangan masih titik awal. Playtest di perangkat sungguhan sedang dilakukan
   dan hasilnya yang menentukan angka akhirnya.
-- **Tangga operator biner per level belum benar-benar diterapkan.** Generator
-  soal sudah membatasi Easy level 1 ke `+ -` saja dan Medium level 1 ke
-  `+ - x` sesuai rencana, tapi rak masih menaruh keempat operator biner di
-  setiap level. Akibatnya operator yang tampil lebih banyak daripada yang
-  pernah dipakai soalnya, dan level 1 tidak sesederhana yang dirancang.
-  Operator unary sudah benar: Easy tidak pernah menampilkan pangkat atau akar.
 - **Barisan pelanggan pada layar sangat kecil.** Pada lebar 320px, empat
   pelanggan membutuhkan 414px, jadi dua di antaranya berada di luar layar dan
   harus digeser. Target sentuhnya aman, tapi masih diverifikasi apakah pemain
