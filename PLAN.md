@@ -12,6 +12,39 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 
 ## ⚠️ Sesi berikutnya - mulai dari sini
 
+> **Baca baris ini dulu kalau baru buka repo.**
+>
+> ```
+> git log --oneline -5          # 5 commit terakhir, semua hijau
+> npm test                      # harus 149/149
+> ```
+>
+> **Yang harus Anda lakukan sendiri (tidak bisa dikerjakan dari meja):**
+>
+> 1. **Rubrik lomba** — sudah diminta ke panitia? Ini blocker submission dan
+>    paling lambat. Kalau belum, hari ini juga.
+> 2. **Playtest ketiga** — buka `PLAYTEST.md`, ikuti 5 run, rekam layar
+>    30–60 detik per run, isi formulir, kirim balik.
+> 3. **Video demo** — dari rekaman playtest, potong 1–2 menit.
+>
+> **Cara menjalankan:**
+>
+> ```bash
+> cd C:\Users\ASUS\Documents\cooking_number
+> python -m http.server 8099 --bind 0.0.0.0 -d .
+> ```
+>
+> Buka `http://192.168.1.6:8099/` dari HP. Flag `-d .` wajib, tanpa itu browser
+> menampilkan *directory listing*.
+>
+> **Kalau playtest sudah kirim:** saya kerjakan bagian 2 di bawah (kalibrasi
+> angka) dan bagian Fase 4 (submission).
+>
+> **Kalau belum:** tidak ada pekerjaan kode yang tertunda. Semua yang tersisa
+> butuh tangan Anda di HP asli atau di formulir.
+
+---
+
 Status saat plan ini ditulis (**29 September 2026**, sisa ±19 hari ke deadline):
 Fase 1, 2, 2.5 selesai dan terverifikasi. Fase 3 secara teknis selesai —
 **kelima belas kombinasi mode x level sudah bisa dimainkan sampai tamat secara
@@ -80,10 +113,11 @@ Ikuti **`PLAYTEST.md`**: lima run (Easy L1, Easy L5, **Hard L1**, Medium L1,
 Hard L3), isi formulirnya, kirim balik. Sekalian rekam layar 30-60 detik per run
 untuk video demo.
 
-**Cara membuka game di HP:** `python -m http.server 8099 --bind 0.0.0.0` di
+**Cara membuka game di HP:** `python -m http.server 8099 --bind 0.0.0.0 -d .` di
 `C:\Users\ASUS\Documents\cooking_number`, lalu buka `http://192.168.1.6:8099/`
-dari HP pada WiFi yang sama. Harus lewat HTTP, `file://` diblokir CORS. Untuk
-membuka semua level sekaligus: `localStorage.setItem('cn.progress',
+dari HP pada WiFi yang sama. Harus lewat HTTP, `file://` diblokir CORS. Flag `-d .`
+wajib ada, kalau tidak browser menampilkan *directory listing* dan bukan game.
+Untuk membuka semua level sekaligus: `localStorage.setItem('cn.progress',
 '{"easy":5,"medium":5,"hard":5}')` lalu reload.
 
 Yang sudah otomatis terukur dan tidak perlu dicatat lagi: semua 15 level
@@ -347,6 +381,7 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
 - [x] `npm run check:styles`: variabel CSS yang hilang tidak bisa lolos diam-diam
 - [x] Angka kesabaran +10% di ketiga mode (Easy 55→53→51→48→46, Medium 48→46→44→41→37, Hard 42→40→36→33→31). Playtest kedua melaporkan selesai dengan bar kesabaran merah di Medium; angka sengaja tidak disentuh lagi sampai playtest ketiga.
 - [x] **Antrean animasi selesai:** chip lebar tetap 1/3 layar, slide-in 350ms dari kanan, FLIP geser kiri, flag `arriving` +1 detik grace, countdown disembunyikan selama animasi. `queue__next` teks tertunda — tidak diputuskan isi slot kosong.
+- [x] **Musik dan efek suara selesai:** loop per level, tombol mute di HUD, 3 SFX (arrive/serve/walkout), disintesis Web Audio API.
 - [ ] Uji drag di perangkat asli: apakah drag merebut scroll halaman
 - [ ] Styling akhir dan polish
 
@@ -355,8 +390,9 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
 - [ ] Materi submission: video demo (bisa dari rekaman playtest) dan deskripsi
       yang sudah ada di `SUBMISSION.md`
 - [ ] Checklist rubrik lomba, sudah ada di `SUBMISSION.md`
-- [ ] Nice-to-have hanya kalau benar-benar ada waktu kosong: suara, animasi
-      karakter, leaderboard lokal. **Prioritaskan playtest dan video demo dulu.**
+- [ ] Nice-to-have hanya kalau benar-benar ada waktu kosong: animasi karakter,
+      leaderboard lokal. Suara dan animasi antrean **sudah selesai**.
+      **Prioritaskan playtest dan video demo dulu.**
 
 ---
 
