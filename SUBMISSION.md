@@ -124,7 +124,7 @@ permainan.
 | Yang diuji | Bagaimana | Hasil |
 |---|---|---|
 | Jaminan solvable di semua 15 kombinasi mode x level | 10.000 soal per kombinasi, tiap soal dievaluasi ulang oleh evaluator milik pemain | **150.000 soal, semua terbukti solvable** |
-| Test otomatis | `node:test` tanpa dependency | **136 test, semua hijau** |
+| Test otomatis | `node:test` tanpa dependency | **149 test, semua hijau** |
 | Level bisa dimainkan sampai selesai | Smoke test menjalankan game sungguhan di Chrome dan memainkannya, bukan hanya memeriksa halaman | **15 dari 15 kombinasi mode x level tamat, seluruh pelanggan tersaji** |
 | Stand bisa disusun mengikuti solusi yang dijamin | Solusi rahasia 720 soal Medium dan Hard diputar ulang satu per satu melalui fungsi yang sama dengan yang dipakai saat mengetuk tile | **720 dari 720 bisa disusun dan disajikan** |
 | Walkout tidak bisa terjadi karena salah klik | Diuji otomatis di unit test: memilih pelanggan lain tidak menghapus hidangan, serve yang ditolak tidak membebaskan pelanggan, dan stand hanya bisa dikosongkan lewat tombol Clear | Tidak ada aksi merusak tanpa disengaja |
@@ -230,7 +230,7 @@ src/core/   logika murni: aritmetika pecahan eksak, operator,
             evaluator kaidah operasi (shunting-yard), trailingTerm,
             backward generator soal dengan precedens
 src/ui/     tampilan, state permainan, drag, i18n
-test/       136 test otomatis
+test/       149 test otomatis
 scripts/    smoke test browser, inspektor soal, pengecek import
 vendor/     interact.js 1.10.27, 96 KB, dilokal
 ```

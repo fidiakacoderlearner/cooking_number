@@ -39,9 +39,9 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   benar. Ditemukan playtest kedua. Sekarang syaratnya "ada operator", bukan
   "panjang cukup": angka telanjang tetap bukan hidangan, tapi satu langkah unary
   sudah hidangan lengkap.
-- **Pangkat beruntun dis|作者 sebagai langkah terpisah.** `2 ² ²` tampil
-  sebagai tiga slot sehingga piring Battlefield 16 sementara stand acusação
-  "2, kuadrat, kuadrat". Sekarang dilipat jadi satu pangkat: `2⁴`.
+- **Pangkat beruntun disajikan sebagai langkah terpisah.** `2 ² ²` tampil
+  sebagai tiga slot sehingga piring menunjukkan 16 sementara stand
+  menampilkan 2, kuadrat, kuadrat. Sekarang dilipat jadi satu pangkat: `2⁴`.
 
 ### Added
 - `scripts/measure-shortcuts.js` — mengukur berapa persen soal yang bisa
@@ -81,7 +81,7 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   pemain tidak melihat bar yang sudah bergerak tapi belum bisa acted upon.
 
 ### Measured
-- Shortcut rate turun, bukan naik seperti yang该项目 diasumsikan: 0–25%
+- Shortcut rate turun, bukan naik seperti yang diasumsikan: 0–25%
   (left-to-right) menjadi 0–15% (kaidah operasi). Rantai yang dirancang jadi
   lebih panjang (rata-rata 3.0 → 3.6 tile di Medium, 3.5 → 4.6 di Hard), dan
   precedence justru menambah cara mencapai target secara tidak seragam.
@@ -92,7 +92,7 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   anggaran attempt di test efisiensi dinaikkan dari 5 ke 10 (floor 0.95).
 - Chip 89px di layar 320px (3 chip = 278px), masih jauh di atas minimum tap
   44px. Smoke test probe diperbarui: karena chip sekarang fixed-width, probe
-  harus menghapus chip asli sebelum测量, bukan menambahnya.
+  harus menghapus chip asli sebelum mengukur, bukan menambahnya.
 
 ### Changed
 - Kesabaran pelanggan dinaikkan 10% di ketiga mode (Easy 50→55, Medium 44→48,
@@ -261,14 +261,14 @@ pemain.
   mengunci bug ini, karena ia memeriksa `orders.length <= MAX_ON_SCREEN`,
   yang memang selalu terpenuhi pada kode yang salah.
 - **Sekitar 42% soal Hard level 1 dan 66% soal Hard level 3 tidak bisa
-  diportion.** `isPlayable` mensyaratkan rantai berakhir dengan angka, padahal
+  diselesaikan.** `isPlayable` mensyaratkan rantai berakhir dengan angka, padahal
   generator secara rutin membuat langkah terakhir puzzle berupa unary, misalnya
   `2³ − 7 × 3 + 1`. Pemain menyusun hidangan yang benar, tombol Sajian tidak
   pernah menyala, dan stand hanya bisa dikosongkan. Rantai yang berakhir pada
   pangkat atau akar sekarang dianggap selesai.
 - **Operator setelah unary ditolak padahal sudah diterima.** `canAccept`
   mengizinkan operator biner sesudah `²`, tapi `isPlayable` menolaknya, jadi
-  langkahnya masuk ke stand lalu stand itu dinyatakan tidak bisa diportion.
+  langkahnya masuk ke stand lalu stand itu dinyatakan tidak bisa dibuat.
   Aturan alternasi angka/operator sekarang sama persis di keduanya: sebuah
   langkah unary tidak memutus alternasi, hanya mengikuti nilai.
 - **Langkah unary dinilai terhadap nilai yang salah.** `pushTile` memvalidasi
@@ -422,10 +422,10 @@ pemain.
 - **Rantai yang selesai adalah rantai yang tidak menunggu operand lagi**, jadi
   boleh berakhir pada `²`, `³`, atau `√` — bukan hanya pada angka. Stand
   menuntut angka di akhir sebenarnya membuat 42% soal Hard level 1 mustahil
-  diportion.
+  diselesaikan.
 - **Aturan "`canAccept` dan `isPlayable` harus sepakat"** jadi prinsip, bukan
   kebetulan. Langkah yang diterima tapi tidak dianggap sah menghasilkan stand
-  yang tidak bisa diportion, dan itu keempat bug unary berasal dari satu
+  yang tidak bisa diselesaikan, dan itu keempat bug unary berasal dari satu
   pemisahan aturan yang tidak sinkron.
 - Timer awal: Easy 50 detik, Medium 44 detik, Hard 38 detik kesabaran; interval
   dasar 15, 12, dan 10 detik. Semua angka ini titik awal untuk playtest di HP

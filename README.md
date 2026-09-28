@@ -87,14 +87,14 @@ SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 | Akar dan pangkat | Bilangan bulat, akar hanya kuadrat sempurna |
 | Target | Bulat dan positif, karena pelanggan memesan "8 porsi" |
 | Pelanggan | Datang **berkala satu per satu**, menumpuk kalau pemain lambat |
-| Kesabaran | **Per pelanggan**, semua jalan bersamaan. Easy 50s, Medium 44s, Hard 38s |
+| Kesabaran | **Per pelanggan**, semua jalan bersamaan. Easy 55–46s, Medium 48–37s, Hard 42–31s (level 1 → 5) |
 | Spawner | Interval dasar 15/12/10 detik, dengan jitter dan decay. Layar penuh = spawner berhenti |
 | Batas layar | Maksimal 3 pelanggan menunggu sekaligus |
 | Syarat gagal | **Walkout tanpa reward**. Tidak ada nyawa, tidak ada pelanggan pengganti |
 | Level gagal | Tidak ada. Level selesai saat roster habis, yang beda cuma skor |
 | Skor | Base per pelanggan per mode, plus bonus kecepatan dari sisa kesabaran. Tidak pernah berkurang |
 | Dapur | Satu stand, satu hidangan. Bahan stand milik pelanggan yang sedang dimasak |
-| Alur | Ketuk pelanggan untuk masak dia  masak  hidangan jadi  sajikan |
+| Alur | Ketuk pelanggan → Masak → Sajikan |
 | Operator | Progresif **per level**, Easy mulai dari `+ -` saja |
 | Input | Ketuk tile, atau seret tile ke stand. Menyajikan lewat tombol Sajian atau ketuk piring |
 | Bahasa | English sebagai default, toggle ID/EN, pilihan tersimpan di `localStorage` |

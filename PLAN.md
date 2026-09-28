@@ -12,17 +12,17 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 
 ## ⚠️ Sesi berikutnya - mulai dari sini
 
-Status saat plan ini ditulis (**28 September 2026**, sisa ±20 hari ke deadline):
+Status saat plan ini ditulis (**29 September 2026**, sisa ±19 hari ke deadline):
 Fase 1, 2, 2.5 selesai dan terverifikasi. Fase 3 secara teknis selesai —
 **kelima belas kombinasi mode x level sudah bisa dimainkan sampai tamat secara
 otomatis.** Kita ~3 minggu lebih maju dari jadwal PRD di §10.
 
-**Kaidah operasi sudah landed** (bagian 4 di bawah), bersama enam item lain:
-`2³` bisa disajikan, `2 ² ²` tampil sebagai `2⁴`, kesabaran +10%, tombol
-Mulai + Aturan Main, dan animasi antrean. Yang tersisa hanya Commit 5 (musik),
-dokumentasi yang sudah ditulis, dan playtest ketiga.
+**Semua commit code sudah landed** — kaidah operasi, `2³` bisa disajikan,
+`2 ² ²` tampil sebagai `2⁴`, kesabaran +10%, tombol Mulai + Aturan Main,
+animasi antrean, musik dan efek suara. Yang tersisa **hanya playtest ketiga**,
+kalibrasi spawner/kesabaran, rubrik lomba, dan video demo.
 
-### Keputusan 27-28 September 2026
+### Keputusan 28 September 2026
 
 Semua ini sudah diputuskan. Kalau besok ada yang terdengar seperti ide baru,
 cek dulu daftar ini supaya tidak dibahas ulang.
@@ -30,8 +30,8 @@ cek dulu daftar ini supaya tidak dibahas ulang.
 | Keputusan | Alasan |
 |---|---|
 | Aturan hitung jadi **kaidah operasi**, bukan kiri-ke-kanan | Playtest: `-5 + -2 x -1` terbaca 7 padahal kaidah bilang -3. Kaidah diajarikan di SMP, jadi versi lama mengajarkan aturan yang salah |
-| Unary mengikat ke **operand**, bukan ke running total | `2 + 3²` harus 11, bukan 25. Kaidah operasiogar Liu-bind ke operandnya, bukan ke total |
-| Drag tile **dipertahankan** | Diperbaiki di sesi ini, dan setelah diperbaiki tile benar-benar mengikuti jari |
+| Unary mengikat ke **operand**, bukan ke running total | `2 + 3²` harus 11, bukan 25. Kaidah operasi mengikat ke operandnya, bukan ke running total |
+| Drag tile **dipertahankan** | Diperbaiki di playtest pertama, dan setelah diperbaiki tile benar-benar mengikuti jari |
 | Drag-serve **dihapus** | Playtest selalu memakai tombol Sajian. Tiga cara menyajikan lebih sulit dipelajari dari satu |
 | Menekan chip = memuat stand, tombol "Masak untuk dia" **dihapus** | Playtest minta elemen lebih sedikit di satu layar |
 | Pindah pelanggan: ≤2 tile bebas, >2 tile **popup konfirmasi**, jam berhenti | Karena satu ketukan kini bisa menghapus hidangan, aturan 11 meminta aksi merusak yang disengaja. Jam berhenti supaya membaca dialog tidak jadi walkout |
@@ -47,7 +47,7 @@ cek dulu daftar ini supaya tidak dibahas ulang.
 
 - 14 bug ditemukan dan diperbaiki, **tidak ada satu pun dari unit test**
 - 12 dari 15 level ternyata tidak pernah bisa tamat
-- 42-66% soal Hard tidak bisa diportion
+- 42-66% soal Hard tidak bisa diselesaikan
 - ~~Rata-rata 43-100% soal punya jalan pintas~~ → **diukur ulang: 0-25%**
   (lihat bagian 4 dan `CHANGELOG.md` bagian Measured). Angka lama terlalu
   tinggi karena pengukuran lama tidak ekshaustif
@@ -57,8 +57,8 @@ cek dulu daftar ini supaya tidak dibahas ulang.
 ### Urutan besok
 
 1. **Anda playtest** dengan build kaidah operasi, isi `PLAYTEST.md`, kirim.
-2. **Paralel: saya kerjakan Commit 5** (musik latar) — tidak bergantung pada
-   angka spawner.
+2. **Paralel: saya perbarui dokumentasi** — sudah ditulis, tinggal review
+   akhir sebelum submit.
 3. Setelah data playtest masuk: kalibrasi angka (bagian 2).
 
 ### Yang paling penting untuk diketahui sebelum mulai
