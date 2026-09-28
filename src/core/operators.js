@@ -34,6 +34,22 @@ export const UNARY_OPS = Object.freeze({
 
 export const ALL_OPS = Object.freeze({ ...BINARY_OPS, ...UNARY_OPS });
 
+/**
+ * Operator precedence, the school rule: times and divide bind tighter than plus
+ * and minus (kaidah operasi, PRD 4). Unary operators are absent because they
+ * are postfix and always bind tightest, handled separately in the evaluator.
+ *
+ * This is the single source of truth. Both the evaluator and the generator read
+ * it, so a puzzle can never be generated under one rule and graded under
+ * another.
+ */
+export const PRECEDENCE = Object.freeze({
+  add: 1,
+  sub: 1,
+  mul: 2,
+  div: 2,
+});
+
 export function opSymbol(key) {
   const op = ALL_OPS[key];
   if (!op) throw new UnknownOperatorError(key);

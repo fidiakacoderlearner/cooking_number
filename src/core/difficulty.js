@@ -160,11 +160,19 @@ const ARRIVAL_SECONDS = Object.freeze({
 /**
  * Patience in seconds per customer, per mode, per level (PRD 5.5). This is how
  * long one customer waits, not how long the whole level lasts.
+ *
+ * These went up by 10% after the second playtest, which reported finishing with
+ * the patience bar already red on Medium — the budget worked out in PLAYTEST
+ * section 7, about 12s per dish at Medium level 5, was not enough for someone
+ * who already has to work the arithmetic out. Only patience moved: the arrival
+ * interval is still 15/12/10s, because tightening the queue as well would have
+ * changed two things at once and left nothing to attribute the result to
+ * (PLAYTEST.md section 7, rule 4).
  */
 const PATIENCE_SECONDS = Object.freeze({
-  [MODES.easy]: Object.freeze([50, 48, 46, 44, 42]),
-  [MODES.medium]: Object.freeze([44, 42, 40, 37, 34]),
-  [MODES.hard]: Object.freeze([38, 36, 33, 30, 28]),
+  [MODES.easy]: Object.freeze([55, 53, 51, 48, 46]),
+  [MODES.medium]: Object.freeze([48, 46, 44, 41, 37]),
+  [MODES.hard]: Object.freeze([42, 40, 36, 33, 31]),
 });
 
 /**
@@ -222,7 +230,7 @@ const HARD = Object.freeze({
   allowNegatives: false,
   allowFractions: true,
   maxPowExponent: 3,
-  fractionChance: 0.3,
+  fractionChance: 0.45,
   maxFractionDenominator: 4,
   /**
    * Hard must genuinely practise roots and powers, not just big numbers, so

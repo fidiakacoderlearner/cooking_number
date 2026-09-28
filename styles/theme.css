@@ -229,6 +229,16 @@
   padding: 6px 12px;
 }
 
+/* A value that carries its own power, `2⁴` or `3²`. Same butter fill as a root so
+   it still reads as a one-tile unary step (PRD 5.3), and wider than an ordinary
+   slot because it now carries two pieces. The superscript characters are
+   already small glyphs, so the size stays at the ordinary slot's rather than
+   being scaled up, which would push the exponent above the line box. */
+.slot--power {
+  background: var(--butter);
+  padding: 6px 12px;
+}
+
 .slot--unary {
   position: relative;
   background: var(--butter);
@@ -324,6 +334,81 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* The rules are the longest text in the game, so the card is wider than the
+   dialogs and scrolls rather than growing past a phone screen. */
+.overlay__card--wide {
+  width: min(100%, 26rem);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  text-align: left;
+  gap: 14px;
+}
+
+.rules__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: rules;
+}
+
+/* The number is drawn as a marker rather than a `list-style` so it can be
+   styled and sized like the rest of the toon furniture instead of inheriting
+   the browser default, which sits at a different optical weight from the text
+   it labels. */
+.rules__item {
+  position: relative;
+  padding-left: 30px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink);
+  counter-increment: rules;
+}
+
+.rules__item::before {
+  content: counter(rules);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--butter);
+  border: var(--stroke) solid var(--ink);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The order-of-operations note is the one item that is a rule rather than an
+   instruction, so it is set apart and its own list inside keeps the numbered
+   marker from running into it. */
+.rules__item--order {
+  padding: 10px 10px 10px 30px;
+  background: #fff8dd;
+  border: 2px dashed rgba(38, 42, 51, 0.35);
+  border-radius: var(--radius-sm);
+}
+
+.rules__item--order::before {
+  background: var(--butter);
+}
+
+.rules__sub {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
 }
 
 /* --------------------------------------------------------------- Toast */

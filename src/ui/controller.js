@@ -203,6 +203,26 @@ function handleDrop(tile, zoneKind, orderId) {
 
 function handleAction(action, dataset) {
   switch (action) {
+    case 'start':
+      // Goes to the level select for the mode the player was last in, which is
+      // why `activeMode` is a module variable rather than read back from the
+      // DOM. Tapping a mode card sets it the same way, so the two routes into a
+      // level can never disagree about which mode is current.
+      openLevelSelect(activeMode);
+      break;
+
+    case 'how-to-play':
+      view.showOverlay('rules');
+      break;
+
+    case 'close-rules':
+      view.showOverlay(null);
+      // Focus has to come back to the button that opened the dialog, or a
+      // keyboard user is dropped at the top of the document with no idea where
+      // they are.
+      view.focusRulesOpener();
+      break;
+
     case 'toggle-lang':
       toggleLanguage();
       view.applyStaticStrings();

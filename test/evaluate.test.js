@@ -6,6 +6,7 @@ import {
   recipe,
   evaluate,
   tryEvaluate,
+  trailingTerm,
   ingredientCount,
   operatorKeys,
   unaryOperatorKeys,
@@ -16,20 +17,34 @@ import {
 import { applyOperator, opArity, opSymbol, consumesOperand, canApply } from '../src/core/operators.js';
 
 /* ------------------------------------------------------------------ *
- * Left-to-right is the headline rule
+ * Operator precedence is the headline rule
  * ------------------------------------------------------------------ */
 
-test('evaluation is strictly left to right, not operator precedence', () => {
-  // The whole point of the agreed rule: 2 + 3 * 4 === 20, not 14.
-  assert.ok(equals(evaluate(recipe(rat(2), [{ op: 'add', operand: rat(3) }, { op: 'mul', operand: rat(4) }])), rat(20)));
+test('evaluation follows kaidah operasi: times and divide bind tighter', () => {
+  // 2 + 3 * 4 = 2 + 12 = 14. This is the school rule and the reason the
+  // left-to-right evaluator was replaced: it read this as 20.
+  assert.ok(equals(evaluate(recipe(rat(2), [{ op: 'add', operand: rat(3) }, { op: 'mul', operand: rat(4) }])), rat(14)));
 
-  // And the reverse order really is a different answer.
+  // The other order is still 14, but for a different reason, and that difference
+  // is the whole point of the rule.
   assert.ok(equals(evaluate(recipe(rat(3), [{ op: 'mul', operand: rat(4) }, { op: 'add', operand: rat(2) }])), rat(14)));
   assert.ok(equals(evaluate(recipe(rat(1), [{ op: 'div', operand: rat(2) }, { op: 'mul', operand: rat(10) }])), rat(5)));
 
-  // Left to right gives -7 / 2 = -3.5. A player who read 2 - 9 / 2 would get
-  // -2.5 instead, which is exactly the confusion this rule removes.
-  assert.ok(equals(evaluate(recipe(rat(2), [{ op: 'sub', operand: rat(9) }, { op: 'div', operand: rat(2) }])), rat(-7, 2)));
+  // 2 - 9 / 2 = 2 - 4.5 = -2.5. Left to right read this as -3.5, which is the
+  // confusion a schoolchild would have had to unlearn.
+  assert.ok(equals(evaluate(recipe(rat(2), [{ op: 'sub', operand: rat(9) }, { op: 'div', operand: rat(2) }])), rat(-5, 2)));
+
+  // A minus running total of zero does not make a division illegal. 5 - 5 is 0,
+  // but 5 - 5 / 2 divides the trailing term, not the zero, so it is 2.5. The old
+  // rule called this a division by zero and refused the move.
+  assert.ok(equals(evaluate(recipe(rat(5), [{ op: 'sub', operand: rat(5) }, { op: 'div', operand: rat(2) }])), rat(5, 2)));
+});
+
+test('equal precedence runs left to right', () => {
+  // 10 - 4 - 3 = 3, not 9. Subtraction is left-associative.
+  assert.ok(equals(evaluate(recipe(rat(10), [{ op: 'sub', operand: rat(4) }, { op: 'sub', operand: rat(3) }])), rat(3)));
+  // 100 / 5 / 2 = 10, not 40.
+  assert.ok(equals(evaluate(recipe(rat(100), [{ op: 'div', operand: rat(5) }, { op: 'div', operand: rat(2) }])), rat(10)));
 });
 
 test('a recipe with no steps returns its start value', () => {
@@ -37,15 +52,16 @@ test('a recipe with no steps returns its start value', () => {
   assert.equal(ingredientCount(recipe(rat(7))), 1);
 });
 
-test('unary operators act on the running value mid-chain', () => {
-  // 9 * 9 -> 81, root -> 9, + 4 -> 13
+test('unary operators bind to the number in front of them, not the whole chain', () => {
+  // `9 * √9 + 4`: the root takes the 9, the product is 27, the sum is 31.
+  // Under left-to-right the root was applied to 81 and the answer was 13.
   const r = recipe(rat(9), [
     { op: 'mul', operand: rat(9) },
     { op: 'sqrt' },
     { op: 'add', operand: rat(4) },
   ]);
-  assert.ok(equals(evaluate(r), rat(13)));
-  assert.deepEqual(traceValues(r), [rat(9), rat(81), rat(9), rat(13)]);
+  assert.ok(equals(evaluate(r), rat(31)));
+  assert.ok(equals(traceValues(r), [rat(9), rat(3), rat(27), rat(31)]));
   assert.equal(ingredientCount(r), 3);
 });
 
@@ -57,12 +73,11 @@ test('pow is unary and takes its exponent from the step', () => {
   const cubed = recipe(rat(2), [{ op: 'pow', exponent: 3 }]);
   assert.ok(equals(evaluate(cubed), rat(8)));
 
-  // Trap: left to right squares the *accumulator*, so 2^3 + 3 becomes 11 first
-  // and 11^2 = 121. Squaring only the trailing 3 would need parentheses, which
-  // the left-to-right rule deliberately does not offer.
+  // 2³ + 3² = 8 + 9 = 17. The left-to-right rule read this as 121, squaring the
+  // running total instead of the trailing 3.
   const mixed = recipe(rat(2), [{ op: 'pow', exponent: 3 }, { op: 'add', operand: rat(3) }, { op: 'pow', exponent: 2 }]);
-  assert.ok(equals(evaluate(mixed), rat(121)), 'left to right squares the accumulator, not the operand');
-  assert.ok(equals(traceValues(mixed), [rat(2), rat(8), rat(11), rat(121)]));
+  assert.ok(equals(evaluate(mixed), rat(17)), 'the square belongs to the 3, not to the running total');
+  assert.ok(equals(traceValues(mixed), [rat(2), rat(8), rat(3), rat(9), rat(17)]));
 });
 
 test('pow exponent is validated against the mode limit', () => {
@@ -72,9 +87,27 @@ test('pow exponent is validated against the mode limit', () => {
 });
 
 test('fractions flow through the chain exactly', () => {
+  // 1/2 + 1/3 * 2 = 1/2 + 2/3 = 7/6. Left to right gave 5/3.
   const r = recipe(rat(1, 2), [{ op: 'add', operand: rat(1, 3) }, { op: 'mul', operand: rat(2) }]);
-  assert.ok(equals(evaluate(r), rat(5, 3)), '0.5 + 0.333.. * 2 must be 5/3, not 1.6666');
+  assert.ok(equals(evaluate(r), rat(7, 6)), 'the product binds tighter than the sum');
 });
+
+test('trailingTerm reports the left side of a pending times or divide', () => {
+  // What a ÷ tile would actually divide: the trailing term, not the whole chain.
+  const r = recipe(rat(2), [{ op: 'add', operand: rat(3) }, { op: 'mul', operand: rat(4) }]);
+  assert.ok(equals(trailingTerm(r), rat(12)), '3 * 4 is the trailing term of 2 + 3 * 4');
+
+  // The whole chain is one term, so it is its own trailing term.
+  assert.ok(equals(trailingTerm(recipe(rat(3), [{ op: 'mul', operand: rat(4) }])), rat(12)));
+
+  // With only low-precedence operators the last operand is the trailing term.
+  assert.ok(equals(trailingTerm(recipe(rat(2), [{ op: 'add', operand: rat(3) }])), rat(3)));
+
+  // A trailing zero is the case the stand's divide guard has to notice.
+  const zero = recipe(rat(5), [{ op: 'sub', operand: rat(5) }]);
+  assert.ok(equals(trailingTerm(zero), rat(5)), 'the trailing term is 5 even though the sum is 0');
+});
+
 
 /* ------------------------------------------------------------------ *
  * Invalid input must be rejected loudly
@@ -157,7 +190,10 @@ test('formatRecipe produces readable traces', () => {
     { op: 'sqrt' },
     { op: 'add', operand: rat(4) },
   ]);
-  assert.equal(formatRecipe(r, opSymbol), '\u221a(9 \u00d7 9) + 4');
+  // The root wraps the number it acts on, which is what the arithmetic means now
+  // and what the stand shows. It used to be printed as √(9 × 9), a form that
+  // reads as 9 but computes 31.
+  assert.equal(formatRecipe(r, opSymbol), '9 × √9 + 4');
 });
 
 test('applyOperator is callable directly for a single step', () => {

@@ -8,6 +8,90 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 ### Changed
+- **Aturan hitung diganti ke kaidah operasi.** `×` dan `÷` mengikat lebih kuat
+  dari `+` dan `−`, dan unary (`²`, `³`, `√`) menempel pada angka di depannya,
+  bukan pada running total. `2 + 3 × 4` kini bernilai 14, bukan 20. Alasan:
+  playtest kedua melaporkan `-5 + -2 × -1` terbaca 7, padahal kaidah operasi
+  yang diajarikan di SMP bilang -3. Aturan lama mengajarkan ketaksamaan yang
+  justru membuat siswa salah.
+  - `evaluate.js` diimplementasikan ulang sebagai shunting-yard, dengan
+    `PRECEDENCE` di `operators.js` sebagai satu-satunya sumber kebenaran.
+    `trailingTerm()` dan `unaryOperands()` ditambahkan; `traceValues()` dan
+    `formatRecipe()` mengikuti definisi baru.
+  - `generator.js`: backward peel sekarang sadar precedens. Semua `+`/`−` harus
+    muncul sebelum `×`/`÷` di dalam satu rantai, yang persis aturan yang membuat
+    peel backward tetap menghasilkan rantai yang benar saat dinilai.
+  - `state.js`: validasi unary memakai nilai yang akan benar-benar diberi unary
+    (`pendingOperand`), penjaga bagi-dari-nol memakai ruas kiri yang sebenarnya
+    (`trailingTerm`), dan pembagi nol ditolak saat tile-nya ditaruh.
+  - Test regresi: `2 + 3 × 4 = 14`, `2 + 3² = 11`, `5 − 5 ÷ 2 = 2.5`.
+
+### Fixed
+- **Akar yang tampil di stand berbohong soal aritmetikanya.** `renderWorkspace`
+  menulis `√` mengelilingi angka (`√16`), sementara evaluator lama menghitung
+  dari kiri ke kanan. Akibatnya `√(2³ + 17)` tampil sebagai `2³ + √17`: bentuk
+  precedence untuk nilai yang dihitung left-to-right. Pada 47% soal Hard yang
+  punya `√`, bentuk yang tampil menghasilkan angka yang berbeda dari yang
+  dihitung, sehingga rantai yang salah baca tidak pernah bisa di-serve. Di bawah
+  kaidah operasi bentuk yang sama menjadi benar, jadi tidak ada perubahan render.
+- **`2³ = 8` tidak bisa di-serve.** `hasDish()` mensyaratkan minimal tiga tile,
+  sehingga rantai unary dua tile ditolak meski sudah menghasilkan jawaban yang
+  benar. Ditemukan playtest kedua. Sekarang syaratnya "ada operator", bukan
+  "panjang cukup": angka telanjang tetap bukan hidangan, tapi satu langkah unary
+  sudah hidangan lengkap.
+- **Pangkat beruntun dis|作者 sebagai langkah terpisah.** `2 ² ²` tampil
+  sebagai tiga slot sehingga piring Battlefield 16 sementara stand acusação
+  "2, kuadrat, kuadrat". Sekarang dilipat jadi satu pangkat: `2⁴`.
+
+### Added
+- `scripts/measure-shortcuts.js` — mengukur berapa persen soal yang bisa
+  diselesaikan dengan lebih sedikit tile daripada rantai yang dirancang.
+  Script ini yang jadi angka sebelum/sesudah untuk perubahan aturan hitung.
+- **Tombol "Mulai" dan overlay "Aturan Main" di menu.** Aturan main dulu hanya
+  ada di kepala pemain yang membuatnya; sekarang tertulis di game, dengan
+  kaidah operasi, urutan operator, dan apa yang terjadi kalau hidangan salah
+  disajikan. Tombol "Mulai" membuka level select untuk mode terakhir, bukan
+  untuk level langsung, supaya tetap ada satu langkahsadapan. Dialog Aturan
+  Main punya `role="dialog"`, `aria-modal`, dan mengembalikan fokus ke tombol
+  pemanggil saat ditutup.
+
+### Changed
+- **Chip pelanggan punya lebar tetap 1/3 layar, bukan meregang.** Sebelumnya
+  `flex: 1 1` membuat satu pelanggan mengambil seluruh baris, dan barisan
+  terlihat seperti banner, bukan antrean. Sekarang tiga slot dengan lebar tetap
+  (`calc((100% - 12px) / 3)`), `max-width: 160px` untuk desktop, dan
+  `overflow: hidden` di strip.
+- **Chip pelanggan bergeser masuk dari kanan, lalu bergeser ke kiri saat slot
+  depan kosong.** `slideIntoPlace()` mengukur posisi chip sebelum dan sesudah
+  render, lalu menganimasikan selisihnya dengan FLIP. Chip yang baru datang
+  mendapat animasi `chip-arrive` 350ms (dari kanan 105% ke 0), dan
+  `pointer-events: none` selama animasi agar tidak bisa diketuk sebelum tiba.
+- **Kesabaran pelanggan dimulai setelah chip tiba.** `tick()` melewati decrement
+  `timeLeft` pada tick pertama untuk order yang baru datang. Ini mencegah
+  walkout yang dipicu chip yang masih sedang slide, sesuai aturan 11 AGENTS.md.
+  Efeknya: satu detik tambahan per pelanggan, level ~7% lebih panjang.
+- **Bar dan countdown di chip disembunyikan selama animasi arrival** supaya
+  pemain tidak melihat bar yang sudah bergerak tapi belum bisa acted upon.
+
+### Measured
+- Shortcut rate turun, bukan naik seperti yang该项目 diasumsikan: 0–25%
+  (left-to-right) menjadi 0–15% (kaidah operasi). Rantai yang dirancang jadi
+  lebih panjang (rata-rata 3.0 → 3.6 tile di Medium, 3.5 → 4.6 di Hard), dan
+  precedence justru menambah cara mencapai target secara tidak seragam.
+- `fractionChance` Hard dinaikkan 0.3 → 0.45 supaya Hard tetap punya setidaknya
+  sebanyak kartu pecahan milik Medium. Tanpa itu urutan mode terbalik di
+  level 1, 2, dan 4.
+- Pohon backward-peel Hard jadi lebih ketat di bawah kaidah operasi, jadi
+  anggaran attempt di test efisiensi dinaikkan dari 5 ke 10 (floor 0.95).
+- Chip 89px di layar 320px (3 chip = 278px), masih jauh di atas minimum tap
+  44px. Smoke test probe diperbarui: karena chip sekarang fixed-width, probe
+  harus menghapus chip asli sebelum测量, bukan menambahnya.
+
+### Changed
+- Kesabaran pelanggan dinaikkan 10% di ketiga mode (Easy 50→55, Medium 44→48,
+  Hard 38→42). Playtest kedua melaporkan selesai dengan bar kesabaran sudah
+  merah di Medium; angka spawner dan kesabaran tidak diubah lagi supaya tidak
+  ada dua hal yang berubah sekaligus.
 - **Redesign inti: pelanggan berdatangan berkala.** Level tidak lagi berisi
   satu pelanggan dengan satu pesanan. Pelanggan datang satu per satu pada
   interval yang ditentukan mode dan level, dan menumpuk kalau pemain lambat.

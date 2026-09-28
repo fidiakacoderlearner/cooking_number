@@ -18,7 +18,7 @@
 
 import * as R from './rational.js';
 import { getBand } from './difficulty.js';
-import { applyOperator, consumesOperand } from './operators.js';
+import { consumesOperand, PRECEDENCE } from './operators.js';
 import { evaluate, traceValues, unaryOperatorKeys } from './evaluate.js';
 
 export class GenerationError extends Error {
@@ -133,10 +133,12 @@ function exactRoot(value, exponent) {
 }
 
 /* ------------------------------------------------------------------ *
- * Backward walking
+ * Backward walking with precedence awareness
  * ------------------------------------------------------------------ */
 
-/** Given `op(pre, operand) === value`, recover `pre`. */
+/**
+ * Given `op(pre, operand) === value`, recover `pre`.
+ */
 function invertBinary(op, value, operand) {
   switch (op) {
     case 'add':
@@ -152,7 +154,9 @@ function invertBinary(op, value, operand) {
   }
 }
 
-/** Given `op(pre) === value`, recover `pre` plus the exponent for `pow`. */
+/**
+ * Given `op(pre) === value`, recover `pre` plus the exponent for `pow`.
+ */
 function invertUnary(op, value) {
   if (op === 'sqrt') {
     if (R.isNegative(value)) return null;
@@ -218,63 +222,137 @@ function pickIngredientValue(band, rng, { allowZero = false } = {}) {
 }
 
 /**
+ * A "term" is one number tile plus the unary steps stacked on top of it.
+ *
+ * `base` is the tile the player picks up, and it is what the recipe step stores,
+ * because that is what `collectIngredients` hands to the rack. `value` is what
+ * the binary operator on its left actually multiplies or divides by, after the
+ * unaries have been applied. Backward peeling has to invert against `value`,
+ * or `pre` would be computed from a number no tile can produce.
+ */
+function pickTerm(band, rng) {
+  // A root is written `√N`, so the tile on the rack is N and the number the
+  // binary operator sees is the root of it. The candidate is built by picking a
+  // base number and squaring it. This goes through `pickIngredientValue` so it
+  // respects the band's fraction settings, but the root itself stays a whole
+  // number: a square root is meant to land on a count of dishes (PRD 5.1), and
+  // `√9/4 = 3/2` is a fraction where the player ordered a portion.
+  if (band.unaryOps.includes('sqrt') && rng() < 0.3) {
+    for (let guard = 0; guard < 8; guard += 1) {
+      const root = randInt(rng, 2, Math.max(2, Math.min(band.maxAbsIngredient, 14)));
+      const squared = R.rat(root * root);
+      if (!isAcceptableValue(squared, band)) continue;
+      if (!isAcceptableIngredient(squared, band)) continue;
+      return { base: squared, unaries: [{ op: 'sqrt' }], value: R.rat(root) };
+    }
+  }
+
+  const base = pickIngredientValue(band, rng);
+  if (base === null) return null;
+
+  let value = base;
+  const unaries = [];
+
+  if (band.unaryOps.includes('pow') && rng() < 0.3) {
+    for (let exponent = 2; exponent <= band.maxPowExponent; exponent += 1) {
+      try {
+        const powered = R.pow(value, exponent);
+        if (isAcceptableValue(powered, band) && !isDegenerateStep('pow', value, powered)) {
+          unaries.push({ op: 'pow', exponent });
+          value = powered;
+          break;
+        }
+      } catch {
+        // exponent past the band, try the next
+      }
+    }
+  }
+
+  return { base, unaries, value };
+}
+
+/**
  * Recursively peel one operation off `value`.
  * Returns `{ start, steps, unaryUsed }` or null when this branch is a dead end.
+ *
+ * `allowLow` controls the operator-precedence restriction:
+ *   - true  → we are still in the low-precedence prefix (+, −). The next binary
+ *             step may be +, −, ×, or ÷.
+ *   - false → we have already placed a × or ÷. The next binary step may only
+ *             be × or ÷. This enforces "× and ÷ are never followed by + or −",
+ *             which is exactly the rule that makes the backward peel produce
+ *             chains that evaluate correctly under precedence.
  *
  * `seen` carries the values the running total has already occupied further down
  * the chain, so a branch that revisits one is dropped. That rules out two kinds
  * of filler: reaching the target early and wandering off again, and pointless
  * round trips such as `3 -> 9 -> 3` (square, then root straight back).
  */
-function peel(value, stepsLeft, unaryLeft, minUnaryLeft, band, rng, seen) {
+function peel(value, stepsLeft, unaryLeft, minUnaryLeft, allowLow, band, rng, seen) {
   if (stepsLeft === 0) {
-    if (minUnaryLeft > 0) return null;
+    // No binary steps left. But a band that owes a unary needs one placed
+    // before the chain is done. The start tile can carry a unary, which is
+    // the only way to satisfy `minUnaryLeft` when no more binary steps remain.
+    if (minUnaryLeft > 0) {
+      for (const op of shuffle(rng, band.unaryOps)) {
+        const inverted = op === 'pow' ? invertPow(value, band) : invertUnary(op, value);
+        if (!inverted) continue;
+        // A root lands on a count of dishes, so its base stays a whole number
+        // (PRD 5.1). A power has no such rule: `(3/2)² = 9/4` is fine, and
+        // refusing it here was why Hard dealt fewer fraction tiles per card
+        // than Medium and broke the mode order.
+        if (op === 'sqrt' && !R.isInteger(inverted.value)) continue;
+        if (!isAcceptableIngredient(inverted.value, band)) continue;
+        if (!isAcceptableValue(inverted.value, band)) continue;
+        if (isDegenerateStep(op, inverted.value, value)) continue;
+        const step = op === 'pow' ? { op, exponent: inverted.exponent } : { op };
+        return { start: inverted.value, steps: [step], unaryUsed: 1 };
+      }
+      return null;
+    }
     return isAcceptableIngredient(value, band) ? { start: value, steps: [], unaryUsed: 0 } : null;
   }
 
-  const wantUnary = unaryLeft > 0 && (minUnaryLeft > 0 || rng() < 0.65);
-  if (wantUnary) {
-    for (const op of shuffle(rng, band.unaryOps)) {
-      const inverted = op === 'pow' ? invertPow(value, band) : invertUnary(op, value);
-      if (!inverted) continue;
-      // Roots stay on whole numbers: sqrt(16) = 4 rather than sqrt(9/4) = 3/2.
-      // Grade 9 can handle fractions, but a root is meant to land on a count of
-      // dishes, not on another fraction (PRD 5.1).
-      if (op === 'sqrt' && !R.isInteger(inverted.value)) continue;
-      if (!isAcceptableValue(inverted.value, band)) continue;
-      if (isDegenerateStep(op, inverted.value, value)) continue;
-      if (seen.has(R.toKey(inverted.value))) continue;
-      const inner = peel(
-        inverted.value,
-        stepsLeft - 1,
-        unaryLeft - 1,
-        Math.max(0, minUnaryLeft - 1),
-        band,
-        rng,
-        withSeen(seen, inverted.value),
-      );
-      if (!inner) continue;
-      const step =
-        op === 'pow' ? { op, exponent: inverted.exponent } : { op };
-      return {
-        start: inner.start,
-        steps: [...inner.steps, step],
-        unaryUsed: inner.unaryUsed + 1,
-      };
-    }
-  }
+  // Binary operators.
+  const availableBinary = allowLow
+    ? band.binaryOps
+    : band.binaryOps.filter((op) => PRECEDENCE[op] > 1);
 
-  for (const op of shuffle(rng, band.binaryOps)) {
-    const operand = pickOperand(op, band, rng);
-    if (operand === null) continue;
-    const pre = invertBinary(op, value, operand);
+  for (const op of shuffle(rng, availableBinary)) {
+    const term = pickTerm(band, rng);
+    if (!term) continue;
+    // A result equal to its own right operand means the left side is a
+    // multiplicative identity: `1 × 8` is 8, so the step teaches nothing.
+    if (R.equals(value, term.value)) continue;
+    const pre = invertBinary(op, value, term.value);
     if (pre === null) continue;
     if (!isAcceptableValue(pre, band)) continue;
     if (isDegenerateStep(op, pre, value)) continue;
     if (seen.has(R.toKey(pre))) continue;
-    const inner = peel(pre, stepsLeft - 1, unaryLeft, minUnaryLeft, band, rng, withSeen(seen, pre));
+
+    const inner = peel(
+      pre,
+      stepsLeft - 1,
+      unaryLeft,
+      Math.max(0, minUnaryLeft - term.unaries.length),
+      PRECEDENCE[op] > 1 ? false : allowLow,
+      band,
+      rng,
+      withSeen(seen, pre),
+    );
     if (!inner) continue;
-    return { start: inner.start, steps: [...inner.steps, { op, operand }], unaryUsed: inner.unaryUsed };
+
+    // The recipe stores the base tile and lets the unaries ride on top of it, so
+    // the rack carries a number the player can actually pick up. The binary
+    // operator on its left sees `term.value`, which is why the inversion above
+    // used that and not `term.base`.
+    const fullSteps = [
+      ...inner.steps,
+      { op, operand: term.base },
+      ...term.unaries,
+    ];
+
+    return { start: inner.start, steps: fullSteps, unaryUsed: inner.unaryUsed + term.unaries.length };
   }
 
   return null;
@@ -315,34 +393,39 @@ function pickTarget(band, rng) {
  * Re-run the chain the way a player would and confirm every rule still holds.
  * This is the belt to `peel`'s braces: if a future change loosens a guard in
  * `peel`, this is what catches it before a broken puzzle reaches a player.
+ *
+ * Every check goes through `evaluate` rather than a hand-rolled accumulator.
+ * Under precedence there is no single running total to walk: `2 + 3 × 4` goes
+ * through 12 before it goes through 14, and a value that is legal mid-chain can
+ * be illegal as a final answer. The one thing a local walk still buys is
+ * catching a bad intermediate, so the trace is checked term by term.
  */
 function verifyChain(recipeObj, band, target) {
   if (!isAcceptableIngredient(recipeObj.start, band)) return false;
+  if (recipeObj.steps.length === 0) return false;
 
-  const steps = recipeObj.steps;
-  let acc = recipeObj.start;
-
-  for (let i = 0; i < steps.length; i += 1) {
-    const step = steps[i];
-    let next;
-    try {
-      next = applyOperator(step.op, acc, step.operand, {
-        maxPowExponent: band.maxPowExponent,
-        exponent: step.exponent,
-      });
-    } catch {
-      return false;
-    }
-    if (isDegenerateStep(step.op, acc, next)) return false;
-    if (!isAcceptableValue(next, band)) return false;
-    // Landing on the target before the final step would make the rest of the
-    // chain a detour the player could skip.
-    const isFinalStep = i === steps.length - 1;
-    if (!isFinalStep && R.equals(next, target)) return false;
-    acc = next;
+  let reached;
+  let values;
+  try {
+    reached = evaluate(recipeObj, { maxPowExponent: band.maxPowExponent });
+    values = traceValues(recipeObj, { maxPowExponent: band.maxPowExponent });
+  } catch {
+    return false;
   }
 
-  return R.equals(acc, target);
+  if (!R.equals(reached, target)) return false;
+
+  // Every value the chain passes through has to be one the player could legally
+  // read off the plate. `trace` repeats the start value and ends on the target,
+  // so the last entry is the answer and the first is where it started.
+  for (const value of values.slice(1, -1)) {
+    // Landing on the target before the final step would make the rest of the
+    // chain a detour the player could skip.
+    if (R.equals(value, target)) return false;
+    if (!isAcceptableValue(value, band)) return false;
+  }
+
+  return true;
 }
 
 /* ------------------------------------------------------------------ *
@@ -413,6 +496,7 @@ export function generatePuzzle(mode, level, options = {}) {
       stepCount,
       unaryBudget,
       Math.min(minUnarySteps, unaryBudget),
+      true, // start in low-precedence zone
       band,
       rng,
       new Set([R.toKey(target)]),
@@ -421,7 +505,9 @@ export function generatePuzzle(mode, level, options = {}) {
     if (built.unaryUsed < minUnarySteps) continue;
 
     const recipeObj = { start: built.start, steps: built.steps };
-    if (!verifyChain(recipeObj, band, target)) continue;
+    if (!verifyChain(recipeObj, band, target)) {
+      continue;
+    }
 
     const realIngredients = collectIngredients(recipeObj);
     if (realIngredients.length < 2) continue;
@@ -452,7 +538,14 @@ export function generatePuzzle(mode, level, options = {}) {
   );
 }
 
-/** The tiles a recipe actually needs, in the order the chain consumes them. */
+/**
+ * The tiles a recipe actually needs, in the order the chain consumes them.
+ *
+ * Under precedence, a term is one tile (the base) plus its unaries. The rack
+ * only ever shows the base numbers, because the unaries are separate tiles
+ * the player applies. So `collectIngredients` returns the bases, not the
+ * post-unary values.
+ */
 export function collectIngredients(recipeObj) {
   const out = [recipeObj.start];
   for (const step of recipeObj.steps) {
@@ -461,7 +554,7 @@ export function collectIngredients(recipeObj) {
   return out;
 }
 
-/** Human readable solution, e.g. `4 * 7` or `sqrt(9 * 9) + 4`. */
+/** Human readable solution, matching the new format (postfix unary). */
 export function displaySolution(recipeObj) {
   let text = R.toFractionString(recipeObj.start);
   for (const step of recipeObj.steps) {
@@ -471,7 +564,7 @@ export function displaySolution(recipeObj) {
     } else if (step.op === 'pow') {
       text = `${text}^${step.exponent ?? 2}`;
     } else {
-      text = `\u221a(${text})`;
+      text = `\u221a${text}`;
     }
   }
   return text;

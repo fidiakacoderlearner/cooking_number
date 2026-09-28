@@ -82,12 +82,31 @@
   animation: nudge 240ms ease-in-out 2;
 }
 
-/* A customer walking in. The whole point of the queue is that arrivals are
-   noticeable, otherwise the pressure builds invisibly. Applied by the view only
-   to a chip that has just arrived, because the queue is rebuilt every second and
-   a chip-wide animation made the whole row blink once a second. */
+/* A customer walking in from outside the right edge of the queue.
+   The whole point of the queue is that arrivals are noticeable, otherwise the
+   pressure builds invisibly. Applied by the view only to a chip that has just
+   arrived, because the queue is rebuilt every second and a chip-wide animation
+   made the whole row blink once a second.
+   `pointer-events: none` is a rule, not decoration: a chip still sliding has not
+   reached its slot yet, and letting it be picked would let the player start a
+   dish on a customer they have not seen arrive. The view drops the class when
+   the animation ends, so the chip becomes tappable the moment it lands.
+   The strip has `overflow: hidden`, so the 105% start is clipped and the chip
+   genuinely enters from off-screen instead of materialising at the edge. */
+@keyframes chip-arrive {
+  from {
+    transform: translateX(105%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 .anim-arrive {
-  animation: pop-in 180ms ease-out both;
+  animation: chip-arrive 350ms ease-out both;
+  pointer-events: none;
 }
 
 /* Steam above a served plate, three staggered wisps. */

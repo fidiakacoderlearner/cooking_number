@@ -152,14 +152,34 @@ test('the next-arrival countdown returns when a slot frees up', () => {
 
 test('a customer who runs out of patience walks out with nothing', () => {
   const state = freshState();
-  S.tick(state, 1);
+  S.tick(state, 1); // spawns the first customer
+  S.tick(state, 1); // lands them, and the arriving tick costs them no patience
   const order = state.orders[0];
+  assert.equal(order.arriving, false, 'the second tick lands the customer');
 
   const events = S.tick(state, order.timeTotal);
   assert.equal(order.status, S.ORDER_STATUS.WALKED);
   assert.equal(order.walkOutReason, 'impatient');
   assert.equal(state.score, 0, 'a walkout must never hand out points');
   assert.ok(events.walked.includes(order), 'the walkout must be reported to the caller');
+});
+
+test('a customer that has just walked in does not burn patience on the first tick', () => {
+  // AGENTS.md rule 11: a walkout must not be triggerable by something the
+  // player never had a chance to see or act on. The chip slides in over 350ms and
+  // is not tappable while it moves, so that tick must not charge for it.
+  const state = freshState();
+  S.tick(state, 1); // spawns the customer, still `arriving`
+  const order = state.orders[0];
+  assert.equal(order.arriving, true, 'a new customer starts out still arriving');
+  assert.equal(order.timeLeft, order.timeTotal, 'and their clock has not moved');
+
+  S.tick(state, 1);
+  assert.equal(order.arriving, false, 'the next tick lands the customer');
+  assert.equal(order.timeLeft, order.timeTotal, 'and still does not charge that tick');
+
+  S.tick(state, 1);
+  assert.equal(order.timeLeft, order.timeTotal - 1, 'only the tick after that counts');
 });
 
 test('a walkout is reported once, not on every tick afterwards', () => {
@@ -424,23 +444,19 @@ test('dividing by a collapsed total is refused with a readable reason', () => {
   S.startCooking(state, order.id);
 
   // The generator never puts a zero tile on the rack, so the only reachable
-  // divide-by-zero is a running total that cancels itself out, like 5 - 5.
-  // The stand is seeded directly here so the case does not depend on the
-  // generator happening to deal a cancelling pair.
+  // divide-by-zero is the divisor itself. Under precedence `5 - 5 ÷ 2` is 2.5,
+  // not 0 ÷ 2: the ÷ binds to the trailing 5, not to the running total. That
+  // means the guard has to catch the zero when it is committed as the operand,
+  // because the ÷ tile alone cannot know what is coming after it.
   state.expression = [
     { kind: 'number', value: rat(5) },
-    { kind: 'operator', op: 'sub' },
-    { kind: 'number', value: rat(5) },
+    { kind: 'operator', op: 'div' },
   ];
-  assert.equal(S.runningTotal(state).n, 0, 'the stand should be sitting on zero');
-
-  const res = S.pushTile(state, { kind: 'operator', op: 'div' });
-  assert.equal(res.ok, false);
-  assert.equal(res.reason, 'work.invalidDivision');
-  assert.equal(state.expression.length, 3, 'the bad operator must not be on the stand');
-
-  // Any other operator is still fine on top of a zero total.
-  assert.equal(S.pushTile(state, { kind: 'operator', op: 'add' }).ok, true);
+  const zero = S.pushTile(state, { kind: 'number', value: rat(0) });
+  assert.equal(zero.ok, false, 'a zero divisor must be refused');
+  assert.equal(zero.reason, 'work.invalidDivision');
+  assert.equal(state.expression.length, 2, 'the refused step must not be left on the stand');
+  assert.equal(S.hasDish(state), false, 'an unfinished chain is not servable');
   void order;
 });
 
@@ -494,7 +510,7 @@ test('a chain may end on a square or a root', () => {
   assert.ok(S.pushTile(state, { kind: 'unary', op: 'pow', exponent: 2 }).ok);
   assert.equal(state.expression[state.expression.length - 1].kind, 'unary');
   assert.equal(S.hasDish(state), true, '2 + 2 squared is a finished dish');
-  assert.equal(S.runningTotal(state).n, 16, 'left to right: 2 + 2 is 4, and 4 squared is 16');
+  assert.equal(S.runningTotal(state).n, 6, 'kaidah operasi: the square belongs to the 2, so 2 + 4');
   assert.equal(S.canAccept(state, 'number'), false, 'a chain waiting for nothing takes no more tiles');
   assert.equal(S.canAccept(state, 'operator'), true, 'but the player may keep going');
 
@@ -511,34 +527,57 @@ test('a chain may end on a square or a root', () => {
   assert.equal(
     toDisplayString(S.runningTotal(state)),
     toDisplayString(add(rat(4), extra)),
-    'left to right: 2 squared is 4, and only then does the next tile count',
+    'the square belongs to the 2, so the running total is 2² + the next tile',
   );
 });
 
-test('a unary step is judged by the running total, not by the tile behind it', () => {
+test('a single unary chain is a dish that can be served', () => {
+  // 2³ is a complete answer to "I want 8 dishes".  The tile run is short —
+  // just [2, ³] — and before this fix `hasDish` refused anything shorter
+  // than three tiles.  Found in a phone playtest where the player read 8 off
+  // the plate and pressed Serve, and nothing happened.
   const state = freshState('hard', 3);
   S.tick(state, 1);
   S.startCooking(state, state.orders[0].id);
 
-  // `1 + 3` is 4, so the square belongs to the running total. A check on the 3
-  // would refuse a legal move.
   state.expression = [
-    { kind: 'number', value: rat(1) },
-    { kind: 'operator', op: 'add' },
-    { kind: 'number', value: rat(3) },
+    { kind: 'number', value: rat(2) },
+    { kind: 'unary', op: 'pow', exponent: 3 },
   ];
-  assert.equal(S.runningTotal(state).n, 4);
-  const res = S.pushTile(state, { kind: 'unary', op: 'sqrt' });
-  assert.equal(res.ok, true, 'a root of the running total must be accepted even when the last tile is not a square');
-  assert.equal(S.runningTotal(state).n, 2, 'the plate has to show the value the chain really reaches');
+  assert.equal(S.hasDish(state), true, '2 cubed = 8 must be servable, not stranded');
+  assert.equal(S.runningTotal(state).n, 8);
 
-  // And the mirror image: a square that looks legal on its own tile must still
-  // be refused when the running total cannot take it, or the stand fills up with
-  // a chain that can never be served.
+  // A bare number is never a dish: the player cannot have accidentally
+  // cooked a customer's number with zero operators.
+  state.expression = [
+    { kind: 'number', value: rat(5) },
+  ];
+  assert.equal(S.hasDish(state), false, 'a bare number is not a dish');
+});
+
+test('a unary step is judged by the tile it acts on, not by the running total', () => {
+  const state = freshState('hard', 3);
+  S.tick(state, 1);
+  S.startCooking(state, state.orders[0].id);
+
+  // `1 + 4` → √4 = 2. Under precedence the root belongs to the 4, not the
+  // running total (5), so this is a legal move.
   state.expression = [
     { kind: 'number', value: rat(1) },
     { kind: 'operator', op: 'add' },
     { kind: 'number', value: rat(4) },
+  ];
+  assert.equal(S.runningTotal(state).n, 5);
+  const res = S.pushTile(state, { kind: 'unary', op: 'sqrt' });
+  assert.equal(res.ok, true, '√4 is legal because 4 is a perfect square');
+  assert.equal(S.runningTotal(state).n, 3, '1 + √4 = 1 + 2 = 3');
+
+  // And the mirror image: a root of 3 is refused because the square belongs to
+  // 3, not to the running total.
+  state.expression = [
+    { kind: 'number', value: rat(1) },
+    { kind: 'operator', op: 'add' },
+    { kind: 'number', value: rat(3) },
   ];
   const bad = S.pushTile(state, { kind: 'unary', op: 'sqrt' });
   assert.equal(bad.ok, false);
@@ -620,7 +659,7 @@ test('undo and clear empty the stand without touching the customer', () => {
   assert.equal(state.cookingOrderId, order.id);
 });
 
-test('the chain evaluates left to right, matching the core rules', () => {
+test('the chain follows kaidah operasi, matching the core rules', () => {
   // Checked on the stand's own chain shape, because the stand only accepts the
   // customer's own ingredients and cannot be handed 2, 3 and 4 on demand.
   const expression = [
@@ -639,7 +678,7 @@ test('the chain evaluates left to right, matching the core rules', () => {
   const state = freshState();
   state.expression = expression;
   const total = S.runningTotal(state);
-  assert.equal(toDisplayString(total), '20', '2 + 3 x 4 must be 20, not 14');
+  assert.equal(toDisplayString(total), '14', '2 + 3 x 4 must be 14, not 20');
 });
 
 test('the level ends only once the roster is spent and nobody is left', () => {

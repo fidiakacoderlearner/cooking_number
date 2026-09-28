@@ -48,6 +48,7 @@ export function cacheDom() {
   dom.overlayScore = el('[data-overlay-score]');
   dom.overlayConfirm = el('[data-overlay="confirm"]');
   dom.overlayConfirmBody = el('[data-confirm-body]');
+  dom.overlayRules = el('[data-overlay="rules"]');
 }
 
 export function showScreen(name) {
@@ -60,6 +61,7 @@ export function showScreen(name) {
 export function showOverlay(name) {
   dom.overlayLevel.hidden = name !== 'level';
   dom.overlayConfirm.hidden = name !== 'confirm';
+  dom.overlayRules.hidden = name !== 'rules';
   if (name === 'level') {
     // Focus moves into the dialog so a stray Enter cannot re-fire the Serve
     // button that is still focused behind the scrim.
@@ -69,6 +71,12 @@ export function showOverlay(name) {
     // Focus lands on the safe answer. The dialog exists because tapping a chip
     // discards a dish, so the default has to be the one that keeps the work.
     dom.overlayConfirm.querySelector('[data-confirm="stay"]')?.focus();
+  }
+  if (name === 'rules') {
+    // The rules card is the longest text in the game, so it scrolls. Focus goes
+    // to Close, not the first heading, so a keyboard user can dismiss it without
+    // tabbing through every rule first.
+    dom.overlayRules.querySelector('.btn--primary')?.focus();
   }
 }
 
@@ -82,6 +90,18 @@ export function showSwitchConfirm({ tiles, target }) {
     dom.overlayConfirmBody.textContent = t('confirm.switchBody', { tiles, target });
   }
   showOverlay('confirm');
+}
+
+/**
+ * Return focus to the menu button that opened the rules dialog.
+ *
+ * The "How to play" button lives in `menu__footer`. There are at most two
+ * buttons, so it is always the second one — the first is "Play".
+ */
+export function focusRulesOpener() {
+  const footer = document.querySelector('.menu__footer');
+  const howTo = footer?.querySelector('.menu__howto');
+  if (howTo) howTo.focus();
 }
 
 let toastTimer = null;
@@ -217,7 +237,50 @@ export function resetChipArrivals() {
   arrivedChipIds.clear();
 }
 
+/**
+ * Slide the chips that changed slot, the way a queue actually closes up.
+ *
+ * Every render rebuilds the strip from scratch, so there is no element left to
+ * transition: the browser never sees the old one move, only the new one appear
+ * in a different place. FLIP fixes that by measuring where each chip was before
+ * the rebuild, measuring where it ended up after, and animating the difference
+ * with a transform.
+ *
+ * Newly arrived chips are skipped. They carry their own arrival animation, and
+ * both write `transform`, so running them together would have the keyframes
+ * overwrite the FLIP offset and the chip would jump.
+ */
+function slideIntoPlace(beforeRects) {
+  for (const chip of dom.queueStrip.querySelectorAll('.chip:not(.anim-arrive)')) {
+    const before = beforeRects.get(chip.dataset.orderId);
+    if (!before) continue;
+    const after = chip.getBoundingClientRect();
+    const dx = before.left - after.left;
+    if (Math.abs(dx) < 0.5) continue;
+
+    chip.style.transition = 'none';
+    chip.style.transform = `translateX(${dx}px)`;
+    // The offset has to be committed before the transition is turned on, or the
+    // browser has nothing to animate from and the chip simply appears.
+    void chip.offsetWidth;
+    chip.style.transition = 'transform 350ms ease-out';
+    chip.style.transform = 'translateX(0)';
+    chip.addEventListener('transitionend', () => {
+      chip.style.transition = '';
+      chip.style.transform = '';
+    }, { once: true });
+  }
+}
+
 export function renderChips(state) {
+  // Measured before the strip is rebuilt, and only the horizontal position:
+  // chips share a row, so vertical movement here would mean a layout change the
+  // queue animation is not meant to paper over.
+  const beforeRects = new Map();
+  for (const chip of dom.queueStrip.querySelectorAll('.chip')) {
+    beforeRects.set(chip.dataset.orderId, chip.getBoundingClientRect().left);
+  }
+
   const nodes = [];
   const onScreen = new Set();
 
@@ -237,6 +300,14 @@ export function renderChips(state) {
     if (!arrivedChipIds.has(order.id)) {
       chip.classList.add('anim-arrive');
       arrivedChipIds.add(order.id);
+      // Tappable the moment the chip stops moving, which is well before its
+      // patience clock starts: the clock is driven by the once-a-second tick and
+      // the animation is not. Letting the player act on what they can already
+      // see is the right way round, and `tick` grants the second of grace that
+      // keeps the clock from charging for time the chip was still in flight.
+      chip.addEventListener('animationend', () => {
+        chip.classList.remove('anim-arrive');
+      }, { once: true });
     }
 
     const portrait = document.createElement('img');
@@ -284,6 +355,8 @@ export function renderChips(state) {
   }
 
   dom.queueStrip.replaceChildren(...nodes);
+  slideIntoPlace(beforeRects);
+
   for (const id of arrivedChipIds) {
     if (!onScreen.has(id)) arrivedChipIds.delete(id);
   }
@@ -345,36 +418,87 @@ function slotClass(item) {
 
 const ROOT_SIGN = '\u221a';
 
+const SUPERSCRIPT = { 2: '\u00b2', 3: '\u00b3', 4: '\u2074' };
+
+function superscriptFor(exponent) {
+  return SUPERSCRIPT[exponent] ?? `^${exponent}`;
+}
+
 function renderWorkspace(state) {
   const nodes = [];
-  // The slot a root sign would wrap, if the next item is one. A power does not
-  // need this: `16` then `2` already reads as 16 squared, because that is how a
-  // power is written. A root is the other way round, `16` then the sign reads
-  // as a number followed by an operator, when the written form is the sign
-  // around the number. Found in a phone playtest, where the value had to be put
-  // in first and only then the sign.
+  // The slot a modifier would wrap, if the next item is one. A power does not
+  // need a sign of its own, because `16` then a superscript already reads as 16
+  // squared: that is how a power is written. A root is the other way round, `16`
+  // then the sign reads as a number followed by an operator, when the written
+  // form is the sign around the number. Found in a phone playtest, where the
+  // value had to be put in first and only then the sign.
   let openNumberSlot = null;
+  // The number inside it, kept apart from the rendered text so a second square
+  // can restate the slot as `16⁴` instead of appending to `16²`, and 0 when the
+  // slot has no power on it yet.
+  let openBase = '';
+  let openExponent = 0;
+
+  const closeSlot = () => {
+    openNumberSlot = null;
+    openBase = '';
+    openExponent = 0;
+  };
+
+  const restatePower = (exponent) => {
+    openExponent = exponent;
+    openNumberSlot.textContent = `${openBase}${superscriptFor(exponent)}`;
+    openNumberSlot.classList.add('slot--power');
+  };
 
   for (const item of state.expression) {
-    if (item.kind === 'unary' && item.op === 'sqrt' && openNumberSlot) {
-      // The modifier is added, not swapped in: dropping the base class would
-      // take the slot out of `.slot` entirely, losing its layout and its place
-      // in the strip without anything visibly going wrong.
-      openNumberSlot.textContent = `${ROOT_SIGN}${openNumberSlot.textContent}`;
-      openNumberSlot.classList.add('slot--root');
-      continue;
+    if (item.kind === 'unary' && openNumberSlot) {
+      if (item.op === 'sqrt') {
+        if (openExponent > 0) {
+          // A root is written around the value it applies to, so a power has to
+          // be restated first: `16² √` would read as 256 under the root, while
+          // the chain really is `√(16²)`. Closing the slot lets the sign stand
+          // on its own rather than claim a side of the number that is taken.
+          closeSlot();
+        } else {
+          // The modifier is added, not swapped in: dropping the base class would
+          // take the slot out of `.slot` entirely, losing its layout and its
+          // place in the strip without anything visibly going wrong.
+          openNumberSlot.textContent = `${ROOT_SIGN}${openBase}`;
+          openNumberSlot.classList.add('slot--root');
+          continue;
+        }
+      } else {
+        // Powers stack, and the core evaluates them as separate steps, so a
+        // second square is a fourth power rather than a second mark. Past a
+        // single digit there is no superscript glyph, and those runs keep one
+        // slot each rather than inventing a caret notation the tile rack never
+        // taught.
+        const next = openExponent === 0 ? (item.exponent ?? 2) : openExponent * (item.exponent ?? 2);
+        if (SUPERSCRIPT[next]) {
+          restatePower(next);
+          continue;
+        }
+      }
     }
 
     const slot = document.createElement('div');
     slot.className = slotClass(item);
     if (item.kind === 'number') {
-      slot.textContent = toDisplayString(item.value);
+      openBase = toDisplayString(item.value);
+      slot.textContent = openBase;
     } else if (item.kind === 'operator') {
       slot.textContent = OPERATORS[item.op]?.symbol ?? '?';
     } else {
-      slot.textContent = item.op === 'sqrt' ? ROOT_SIGN : (item.exponent === 3 ? '\u00b3' : '\u00b2');
+      slot.textContent = item.op === 'sqrt' ? ROOT_SIGN : superscriptFor(item.exponent ?? 2);
     }
-    openNumberSlot = item.kind === 'number' ? slot : null;
+
+    if (item.kind === 'number') {
+      openNumberSlot = slot;
+      openExponent = 0;
+    } else {
+      closeSlot();
+    }
     nodes.push(slot);
   }
 

@@ -23,8 +23,9 @@ kualitas" diambil dari kode dan dari hasil menjalankan test, bukan klaim.
 > menghasilkan angka itu. Pelanggan berikutnya sudah berjalan masuk sebelum
 > yang sebelumnya selesai, sehingga tekanan datang dari kecepatan kerja pemain,
 > bukan dari satu teka-teki yang dibiarkan menggantung. Operasi hitung dibaca
-> left-to-right dan nilai berjalan selalu terlihat di layar, sehingga pemain
-> tidak perlu mengingat aturan operator precedence. Kegagalan diwujudkan
+> kaidah operasi yang sama dengan yang diajarikan di sekolah, dan nilai
+> berjalan selalu terlihat di layar, sehingga pemain bisa memeriksa
+> langkahnya sendiri. Kegagalan diwujudkan
 > sebagai walkout: pelanggan pergi tanpa poin, tanpa nyawa, dan tanpa pelanggan
 > pengganti. Tidak ada level yang gagal. Yang membedakan level adalah berapa
 > pelanggan yang berhasil dilayani. Game berjalan langsung di browser, tanpa
@@ -38,7 +39,7 @@ kualitas" diambil dari kode dan dari hasil menjalankan test, bukan klaim.
 | Masalah | Bagaimana game ini menjawabnya |
 |---|---|
 | Latihan operasi hitung terasa seperti lembar kerja | Setiap soal punya tenggat nyata. Pelanggan menunggu, dan kalau dia pergi itu terasa |
-| Siswa sering salah karena lupa aturan precedence | Aturan hitung dikunci left-to-right dan nilai berjalan selalu ditampilkan. Tidak ada precedence yang harus diingat |
+| Siswa sering salah karena lupa urutan hitung | Aturan hitung memakai kaidah operasi yang sama dengan pelajaran di sekolah, dan nilai berjalan selalu ditampilkan di piring. Tidak ada aturan khusus game yang harus dipelajari ulang |
 | Materi baru muncul mendadak tanpa persiapan | Operator bertambah satu per satu, jadi game dimulai dari dua operator saja lalu membuka yang baru seiring level naik. Easy tidak pernah memakai pangkat maupun akar, Medium mendapat pangkat dua di level 4, Hard mendapat akar kuadrat di level 3 |
 | Sering diminta jawaban benar, padahal prosesnya yang perlu dilatih | Memasukkan hidangan yang salah itu mungkin dan walkout adalah konsekuensi yang sah. Tapi nilai akhir selalu terlihat di piring sebelum disajikan, dan tidak ada aksi merusak tanpa disengaja |
 | Tidak bisa dipakai di perangkat sekolah | Jalur masuknya browser. Ada yang bisa dipakai tanpa internet setelah halaman terbuka, dan tidak ada yang diambil dari server pihak ketiga saat permainan berjalan |
@@ -226,7 +227,8 @@ adalah logika murni tanpa DOM, dan `src/ui` hanya memanggil API publik core.
 
 ```
 src/core/   logika murni: aritmetika pecahan eksak, operator,
-            evaluator left-to-right, backward generator soal
+            evaluator kaidah operasi (shunting-yard), trailingTerm,
+            backward generator soal dengan precedens
 src/ui/     tampilan, state permainan, drag, i18n
 test/       136 test otomatis
 scripts/    smoke test browser, inspektor soal, pengecek import

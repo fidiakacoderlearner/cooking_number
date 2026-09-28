@@ -18,7 +18,7 @@ import {
   LEVELS_PER_MODE,
   MAX_ON_SCREEN,
 } from '../core/difficulty.js';
-import { evaluate } from '../core/evaluate.js';
+import { evaluate, trailingTerm } from '../core/evaluate.js';
 import * as R from '../core/rational.js';
 
 /** Base points per served customer, by mode. */
@@ -66,6 +66,10 @@ function makeOrder(mode, level, index, rng) {
     status: ORDER_STATUS.WAITING,
     timeTotal: total,
     timeLeft: total,
+    // The chip slides in from the right before it can be tapped, so patience
+    // must not run while it is still moving. Cleared by the first `tick`, which
+    // is also the first moment the player is able to act on this customer.
+    arriving: true,
   };
 }
 
@@ -262,6 +266,16 @@ export function pushTile(state, item) {
   }
 
   if (item.kind === 'number') {
+    // A zero divisor is caught where it is committed rather than on the ÷ tile.
+    // The ÷ is placed first and the operand second, so the operator tile has no
+    // way to know what is coming. This runs before the rack lookup because it is
+    // a rule about the chain, not about what was dealt: a zero divisor is a
+    // problem whoever put it there.
+    const previous = state.expression[state.expression.length - 1];
+    if (previous?.kind === 'operator' && previous.op === 'div' && R.isZero(item.value)) {
+      return { ok: false, reason: 'work.invalidDivision' };
+    }
+
     const key = R.toKey(item.value);
     const available = order.puzzle.ingredients.filter((v) => R.toKey(v) === key).length;
     const used = usedKeys(state.expression).filter((k) => k === key).length;
@@ -272,17 +286,18 @@ export function pushTile(state, item) {
   }
 
   if (item.kind === 'operator') {
-    // Dividing by zero is checked before the step is committed, both for a zero
-    // operand and for a running total that has collapsed to zero (3 - 3). The
-    // generator never puts a zero on a tile, so the second case is the one that
-    // actually happens in play.
+    // The left side of a ÷ is the trailing *term*, not the whole running total.
+    // Under precedence `5 - 5 ÷ 2` is 2.5, not a division by zero: the ÷ binds
+    // to the 5, not to the 0 that 5 - 5 produced. Checking the running total
+    // would refuse that move, and the player would be stuck holding a chain the
+    // rules allow and cannot build.
     if (item.op === 'div') {
       const last = state.expression[state.expression.length - 1];
       if (last.kind === 'number' && R.isZero(last.value)) {
         return { ok: false, reason: 'work.invalidDivision' };
       }
-      const running = runningTotal(state);
-      if (running !== null && R.isZero(running)) {
+      const left = trailingTermOf(state);
+      if (left !== null && R.isZero(left)) {
         return { ok: false, reason: 'work.invalidDivision' };
       }
     }
@@ -291,12 +306,12 @@ export function pushTile(state, item) {
   }
 
   if (item.kind === 'unary') {
-    // The step is checked against the running total, which is the value
-    // `evaluate` will actually feed it, and not against the tile it happens to
-    // sit behind. In `1 + 3 ²` the square belongs to 4, so a check on 3 both
-    // refuses a legal move and lets an illegal one through to a stand that can
-    // never be served.
-    const base = chainValue(state);
+    // The step is checked against the operand it will actually act on, which is
+    // the number tile in front of it with any unaries already stacked on top.
+    // In `1 + 3 ²` the square belongs to 3, so the plate reads 1 + 9 = 10; a
+    // check on the running total would refuse it and let through a root the
+    // rules forbid.
+    const base = pendingOperand(state);
     if (base === null) return { ok: false, reason: 'work.badStep' };
     const probe = { start: base, steps: [{ op: item.op, exponent: item.exponent }] };
     try {
@@ -323,6 +338,55 @@ function chainValue(state) {
   if (state.expression.length === 0) return null;
   try {
     return evaluate(expressionToRecipe(state.expression), {
+      maxPowExponent: state.band.maxPowExponent,
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The value a unary step would act on: the last number tile with the unaries
+ * already stacked on it.
+ *
+ * Under precedence a square or a root belongs to the operand in front of it, so
+ * `1 + 3 ²` squares the 3 and not the 4. Returns null when there is no number
+ * yet, or when the unaries on it already failed to evaluate.
+ */
+function pendingOperand(state) {
+  const expression = state.expression;
+  let index = expression.length - 1;
+  while (index >= 0 && expression[index].kind !== 'number') index -= 1;
+  if (index < 0) return null;
+
+  const steps = [];
+  for (let i = index + 1; i < expression.length; i += 1) {
+    const item = expression[i];
+    if (item.kind !== 'unary') break;
+    steps.push({ op: item.op, exponent: item.exponent });
+  }
+
+  try {
+    return evaluate(
+      { start: expression[index].value, steps },
+      { maxPowExponent: state.band.maxPowExponent },
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The value on the left of a × or ÷ about to be placed.
+ *
+ * Same reasoning as `pendingOperand`, one level up: the left side of a product
+ * is the trailing term, not the whole running total. Null when the chain so far
+ * cannot be read, which leaves the divide guard to the operand check alone.
+ */
+function trailingTermOf(state) {
+  if (state.expression.length === 0) return null;
+  try {
+    return trailingTerm(expressionToRecipe(state.expression), {
       maxPowExponent: state.band.maxPowExponent,
     });
   } catch {
@@ -386,12 +450,24 @@ export function runningTotal(state) {
 /**
  * Is there a dish worth serving?
  *
+ * The test is "did the player use at least one operator", not "how many tiles
+ * are on the stand". A bare number is not a dish, but `2³` and `√16` are complete
+ * answers to "8 dishes" and "4 dishes", and requiring three tiles refused both.
+ * A phone playtest found it on a customer who wanted 8: the player built 2³,
+ * read the value off the plate, and could not serve it.
+ *
+ * A bare number can never be correct anyway: the generator refuses to put the
+ * target on a tile (see `generatePuzzle`), so the guard is about not lighting
+ * the button on an empty reading, not about blocking a real solution.
+ *
  * Deliberately does *not* check the value. Serving the wrong dish is a real
  * mechanic and the player must be allowed to do it (PRD 4).
  */
 export function hasDish(state) {
-  if (state.expression.length < 3) return false;
-  return isPlayable(state) && runningTotal(state) !== null;
+  if (!isPlayable(state)) return false;
+  const usedOperator = state.expression.some((item) => item.kind === 'operator' || item.kind === 'unary');
+  if (!usedOperator) return false;
+  return runningTotal(state) !== null;
 }
 
 /** Does the dish match this customer's number? */
@@ -505,6 +581,14 @@ export function tick(state, seconds = 1) {
   // 1. Patience runs down for everyone still waiting.
   for (const order of state.orders) {
     if (order.status === ORDER_STATUS.SERVED || order.status === ORDER_STATUS.WALKED) continue;
+    // A customer that is still walking in does not burn patience. The chip is on
+    // screen but not yet tappable, and AGENTS.md rule 11 forbids a walkout the
+    // player had no way to prevent or even see coming. Skipping the tick gives
+    // every customer one extra second, which is the cost of that rule.
+    if (order.arriving) {
+      order.arriving = false;
+      continue;
+    }
     order.timeLeft -= seconds;
     if (order.timeLeft <= 0) {
       order.timeLeft = 0;

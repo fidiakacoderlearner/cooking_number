@@ -55,7 +55,7 @@ styles/                 base, layout, theme, animations
 src/core/               logika murni, tanpa DOM
   rational.js           aritmetika pecahan eksak (tanpa floating point)
   operators.js          registry operator biner (+ - x /) dan unary (^ sqrt)
-  evaluate.js           evaluator left-to-right untuk rantai langkah
+  evaluate.js           evaluator kaidah operasi (shunting-yard) + trailingTerm
   difficulty.js         konfigurasi tiap mode dan level
   generator.js          backward generation soal + jaminan solvable
 src/ui/                 view, state, controller
@@ -80,7 +80,7 @@ SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 | Topik | Keputusan |
 |---|---|
 | Bentuk ekspresi | Chaining bertahap, hasil operator kembali dipakai di langkah berikutnya |
-| Aturan hitung | **Left-to-right**, semua operator sama bobot: `2 + 3 x 4 = 20`. Playtest di HP menyimpulkan ini membingungkan karena kaidah operasi gula jadi `14`; sudah diputuskan ganti ke kaidah, belum dikerjakan (lihat `PLAN.md` Fase 4) |
+| Aturan hitung | **Kaidah operasi**: `x` dan `:` mengikat lebih kuat dari `+` dan `-`, jadi `2 + 3 x 4 = 14`. Unary menempel pada operand: `2 + 3^2 = 11`. Playtest kedua=left-to-right membingungkan (`-5 + -2 x -1` terbaca 7) dan kaidah itulah yang diajarikan di SMP |
 | Sisi numerik | Aritmetika pecahan eksak, `0.1 + 0.2` harus `0.3` |
 | Substansi | Subset bebas, ada distractor sehingga pemain harus memilih |
 | Jumlah solusi | Single hiding, satu jawaban rahasia ditambah pengalihan |

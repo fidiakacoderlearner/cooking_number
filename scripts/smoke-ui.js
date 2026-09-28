@@ -148,6 +148,7 @@ const PAGE_HELPERS = `
   (async () => {
     const R = await import('/src/core/rational.js');
     const O = await import('/src/core/operators.js');
+    const E = await import('/src/core/evaluate.js');
 
     function parseTile(label) {
       const s = String(label).trim();
@@ -162,29 +163,18 @@ const PAGE_HELPERS = `
       return R.rat(Number(s), 1);
     }
 
-    function applyStep(value, op) {
-      try {
-        return O.applyOperator(op.key, value, op.operand, { exponent: op.exponent });
-      } catch {
-        return null;
-      }
-    }
-
-    function isZero(v) { return v.n === 0; }
-
     /**
      * Search for a chain reaching the target using only the tiles on the rack.
      *
-     * The search mirrors how the stand evaluates: a chain starts with a value,
-     * then alternates operators with values and may take unary steps, and ends
-     * on a value. A unary step is tried wherever the running total allows it,
-     * which is deliberately more permissive than the stand's own guard rails,
-     * because a route the game refuses to accept is a bug worth failing on.
+     * The search builds a recipe (start + steps) and calls the real evaluator
+     * on it, so the chain it finds is one the game will actually accept under
+     * the same kaidah-operasi rules the player sees. This is why the solver was
+     * rewritten to use E.evaluate rather than a hand-rolled accumulator: the
+     * earlier left-to-right version returned chains that looked right on paper
+     * but evaluated to a different number on screen, which is exactly the
+     * class of bug this test exists to catch.
      *
-     * \`maxSteps\` comes from the level's own band, so Hard is searched deeper
-     * than Easy rather than sharing one number that happens to fit one of them.
-     *
-     * Dead branches are memoised on (used mask, depth, running value). Hard
+     * Dead branches are memoised on (used mask, depth, current value). Hard
      * offers seven tiles and three unary operators, so the un-memoised search
      * reaches hundreds of thousands of nodes on a single dish.
      */
@@ -197,54 +187,60 @@ const PAGE_HELPERS = `
       const dead = new Set();
       let mask = 0;
 
-      function walk(current, depth, path) {
+      function evaluateRecipe(start, steps) {
+        try {
+          return E.evaluate({ start, steps }, { maxPowExponent: 3 });
+        } catch {
+          return null;
+        }
+      }
+
+      function walk(start, steps, depth, path) {
+        const current = evaluateRecipe(start, steps);
+        if (current === null) return null;
         if (depth > 0 && R.equals(current, target)) return path;
         if (depth >= maxSteps) return null;
         const key = mask + '|' + depth + '|' + R.toKey(current);
         if (dead.has(key)) return null;
-        const found = search(current, depth, path);
+        const found = search(start, steps, depth, path);
         if (!found) dead.add(key);
         return found;
       }
 
-      function search(current, depth, path) {
+      function search(start, steps, depth, path) {
         for (const op of binary) {
           for (let i = 0; i < n; i += 1) {
             if (mask & (1 << i)) continue;
             mask |= 1 << i;
-            const next = applyStep(current, { key: op.key, operand: values[i] });
-            const found = next && !isZero(next)
-              ? walk(
-                  next,
-                  depth + 1,
-                  path.concat([{ kind: 'operator', label: op.label }, { kind: 'number', label: valueLabels[i] }]),
-                )
-              : null;
+            const newSteps = steps.concat([{ op: op.key, operand: values[i] }]);
+            const newPath = path.concat([
+              { kind: 'operator', label: op.label },
+              { kind: 'number', label: valueLabels[i] },
+            ]);
+            const found = walk(start, newSteps, depth + 1, newPath);
             mask &= ~(1 << i);
             if (found) return found;
           }
         }
 
         for (const op of unary) {
-          if (isZero(current)) continue;
-          const next = applyStep(current, { key: op.key, exponent: op.exponent });
-          if (next && !isZero(next)) {
-            const found = walk(next, depth + 1, path.concat([{ kind: 'operator', label: op.label }]));
-            if (found) return found;
-          }
+          const newSteps = steps.concat([{ op: op.key, exponent: op.exponent }]);
+          const newPath = path.concat([{ kind: 'operator', label: op.label }]);
+          const found = walk(start, newSteps, depth + 1, newPath);
+          if (found) return found;
         }
         return null;
       }
 
       for (let i = 0; i < n; i += 1) {
         mask = 1 << i;
-        const found = walk(values[i], 0, [{ kind: 'number', label: valueLabels[i] }]);
+        const found = walk(values[i], [], 0, [{ kind: 'number', label: valueLabels[i] }]);
         if (found) return found;
       }
       return null;
     }
 
-    window.__cn = { solve, parseTile, R, O };
+    window.__cn = { solve, parseTile, R, O, E };
   })();
 `;
 
@@ -334,11 +330,20 @@ const READ_TAP_TARGETS = () => {
  * measuring the game that actually ships. A chip narrower than the touch minimum
  * is a gate failure; a chip pushed out of view is a finding for the playtest on
  * a real phone, not a failure here.
+ *
+ * The real chips are removed before the clones go in, so the strip holds exactly
+ * `count` of them. Appending instead used to be harmless because the chips were
+ * flexible and shrank to fit whatever was in the row, but they are fixed-width
+ * slots now, and a probe that quietly measures one more customer than the screen
+ * can hold would report a failure that is an artefact of the probe.
  */
 const READ_QUEUE_FIT = (count) => {
   const strip = document.querySelector('.queue__strip');
   const real = strip?.querySelector('.chip');
   if (!real) return { skipped: true };
+
+  const removed = [...strip.querySelectorAll('.chip')];
+  for (const node of removed) node.remove();
 
   const clones = [];
   for (let i = 0; i < count; i += 1) {
@@ -358,7 +363,11 @@ const READ_QUEUE_FIT = (count) => {
     scrollable: strip.scrollWidth > strip.clientWidth + 1,
     boxes,
   };
+  // The real chips go back, not just the clones: the game is still running and
+  // the next render would rebuild the row anyway, but leaving the strip empty
+  // makes the frames after this one measure nothing.
   for (const clone of clones) clone.remove();
+  for (const node of removed) strip.append(node);
   return out;
 };
 
@@ -465,17 +474,40 @@ const READ_STAND = () => [...document.querySelectorAll('.workspace__line .slot')
 /**
  * The stand's contents in the shape the solver's plan uses.
  *
- * A root is displayed wrapped around its value (`√18`) because that is how it is
- * written, while the plan records the value and the sign as two separate steps.
+ * A root is displayed wrapped around its value (`√18`) and a power as a
+ * superscript on the number it applies to (`18²`), because that is how each is
+ * written. The plan records the value and the modifier as two separate steps.
  * Without this the comparison reports a chain that is actually correct as a
  * mismatch, which is how a test ends up failing the thing it was written to
  * prove. The rewrite is inlined because this runs inside the browser.
  */
-const STAND_AS_PLAN = () => [...document.querySelectorAll('.workspace__line .slot')].map((n) => {
-  const trimmed = String(n.textContent).trim();
-  const rooted = /^\u221a(.+)$/.exec(trimmed);
-  return rooted ? `${rooted[1]} \u221a` : trimmed;
-});
+const STAND_AS_PLAN = () => {
+  const out = [];
+  for (const node of document.querySelectorAll('.workspace__line .slot')) {
+    const text = String(node.textContent).trim();
+    // A folded power is one slot for several steps: `11⁴` is `11 ² ²`, because
+    // the core counts each square as its own step and the solver plans them the
+    // same way. 4 is only ever reached by 2·2, so the expansion is exact.
+    const powered = /^(.+?)([\u00b2\u00b3\u2074])$/.exec(text);
+    if (powered) {
+      const [, base, mark] = powered;
+      if (mark === '\u2074') out.push(base, '\u00b2', '\u00b2');
+      else out.push(base, mark);
+      continue;
+    }
+    // A root is displayed wrapped around its value (`√18`). Multiple roots can
+    // nest: `√√√8` is three `sqrt` steps on the same value. Unwrap all leading
+    // `√` signs and record them as separate steps, leaving the bare number.
+    const rootCount = text.length - text.replace(/^\u221a/, '').length;
+    const bare = text.replace(/^\u221a+/g, '').trim();
+    for (let r = 0; r < rootCount; r += 1) {
+      out.push(bare || '0');
+      out.push('\u221a');
+    }
+    if (rootCount === 0) out.push(text.trim() || text);
+  }
+  return out;
+};
 
 /**
  * Tap a customer chip, which is the whole commitment.
@@ -1049,9 +1081,12 @@ async function dragChecks(page) {
     `a "${square.label}" tile can be dragged`,
   );
   const unaryStand = await page.evaluate(READ_STAND);
+  // A power is displayed as a superscript on the number it applies to, so the
+  // square joins the tile in front of it instead of taking a slot of its own.
+  // `2` then `²` is the written form of 2², and the stand says so.
   must(
-    unaryStand.length === 2 && unaryStand[1] === square.label,
-    `the square lands on the stand as a unary step ("${unaryStand.join(' ')}")`,
+    unaryStand.length === 1 && unaryStand[0].endsWith(square.label),
+    `the square lands on the stand as a superscript on the number ("${unaryStand.join(' ')}")`,
   );
   const unaryRack = await page.evaluate(READ_RACK);
   must(

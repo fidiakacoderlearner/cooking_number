@@ -73,6 +73,24 @@ body {
 .menu__footer {
   margin-top: auto;
   padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Start and How-to-play sit side by side. Equal flex means neither looks like
+   the primary and the other like an afterthought, because reading the rules is
+   a normal thing to do before a first level and should not be demoted to a
+   footnote the way a small link would. */
+.menu__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.menu__actions .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
 }
 
 /* -------------------------------------------------------- Level select */
@@ -214,8 +232,11 @@ body {
   align-items: stretch;
   gap: 6px;
   min-height: var(--chip-min);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  /* Chips are fixed-width slots now, so nothing scrolls sideways. `hidden`
+     instead of `auto` on purpose: the arrival animation slides a chip in from
+     past the right edge, and a scroll container would let that show as a
+     scrollbar flash. */
+  overflow: hidden;
 }
 
 .queue__next {
@@ -228,7 +249,17 @@ body {
 
 .chip {
   position: relative;
-  flex: 1 1 var(--chip-min);
+  /* Three fixed slots across the strip, not chips that stretch to fill it. A
+     single customer used to take the whole row, which made the queue read as
+     a banner rather than as a queue; at one customer wide there was no
+     indication that two more were coming. The 6px gap between slots is
+     subtracted before the division so all three fit exactly. `flex: 0 0`
+     keeps them from growing or shrinking with the contents, which is what
+     lets the strip hold a fixed pitch for the arrival animation to slide into.
+     160px caps it on a tablet: a third of a 1280px screen is a 426px card,
+     which is neither a chip nor readable as one. */
+  flex: 0 0 calc((100% - 12px) / 3);
+  max-width: 160px;
   min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

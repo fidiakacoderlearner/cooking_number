@@ -268,15 +268,15 @@ logika permainan.
 Salin blok ini, isi, kirim. Yang tidak ada jawabannya tidak apa-apa.
 
 ```
-Main di:             ____________________
-Level yang dicoba:   ____________________
-Yang paling pusing:  ____________________
-Yang paling enak:    ____________________
-Walkout yg terjadi:  ya/tidak, level mana, menurutmu kenapa:
-                     ____________________
-Dialog konfirmasi:  muncul di saat yang tepat / tidak
-Nilai akhir piring:  terbaca / tidak
-Warna bar patience:  kuning lalu merah, kelihatan / tidak
-Drag vs scroll:      halaman ikut ter-scroll / tidak
-Rekaman layar:       ada / tidak
+Main di:             Infinix Note 30 Pro
+Level yang dicoba:   Hard L1 - L2
+Yang paling pusing:  udah agak sedikit aman sekarang
+Yang paling enak:    udah lumayan lebih mudah sekarang
+Walkout yg terjadi:  ya, Level 2 Hard, menurutmu kenapa:
+                     Saya tidak tau jawabannya
+Dialog konfirmasi:   muncul di saat yang tepat 
+Nilai akhir piring:  terbaca 
+Warna bar patience:  kuning lalu merah, kelihatan 
+Drag vs scroll:      tidak
+Rekaman layar:       tidak
 ```

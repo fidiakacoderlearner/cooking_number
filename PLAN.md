@@ -12,12 +12,17 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 
 ## ⚠️ Sesi berikutnya - mulai dari sini
 
-Status saat plan ini ditulis (27 September 2026, sisa ±21 hari ke deadline):
+Status saat plan ini ditulis (**28 September 2026**, sisa ±20 hari ke deadline):
 Fase 1, 2, 2.5 selesai dan terverifikasi. Fase 3 secara teknis selesai —
 **kelima belas kombinasi mode x level sudah bisa dimainkan sampai tamat secara
 otomatis.** Kita ~3 minggu lebih maju dari jadwal PRD di §10.
 
-### Keputusan 27 September 2026
+**Kaidah operasi sudah landed** (bagian 4 di bawah), bersama enam item lain:
+`2³` bisa disajikan, `2 ² ²` tampil sebagai `2⁴`, kesabaran +10%, tombol
+Mulai + Aturan Main, dan animasi antrean. Yang tersisa hanya Commit 5 (musik),
+dokumentasi yang sudah ditulis, dan playtest ketiga.
+
+### Keputusan 27-28 September 2026
 
 Semua ini sudah diputuskan. Kalau besok ada yang terdengar seperti ide baru,
 cek dulu daftar ini supaya tidak dibahas ulang.
@@ -25,11 +30,16 @@ cek dulu daftar ini supaya tidak dibahas ulang.
 | Keputusan | Alasan |
 |---|---|
 | Aturan hitung jadi **kaidah operasi**, bukan kiri-ke-kanan | Playtest: `-5 + -2 x -1` terbaca 7 padahal kaidah bilang -3. Kaidah diajarikan di SMP, jadi versi lama mengajarkan aturan yang salah |
+| Unary mengikat ke **operand**, bukan ke running total | `2 + 3²` harus 11, bukan 25. Kaidah operasiogar Liu-bind ke operandnya, bukan ke total |
 | Drag tile **dipertahankan** | Diperbaiki di sesi ini, dan setelah diperbaiki tile benar-benar mengikuti jari |
 | Drag-serve **dihapus** | Playtest selalu memakai tombol Sajian. Tiga cara menyajikan lebih sulit dipelajari dari satu |
 | Menekan chip = memuat stand, tombol "Masak untuk dia" **dihapus** | Playtest minta elemen lebih sedikit di satu layar |
 | Pindah pelanggan: ≤2 tile bebas, >2 tile **popup konfirmasi**, jam berhenti | Karena satu ketukan kini bisa menghapus hidangan, aturan 11 meminta aksi merusak yang disengaja. Jam berhenti supaya membaca dialog tidak jadi walkout |
-| Kesabaran **tidak diubah** untuk sekarang | Anda bilang "kesulitan normal aja dikurangi" tapi juga tegas tidak meminta angka diubah. Angka menunggu playtest ketiga supaya tidak ada dua kali pengujian dengan game berbeda |
+| Kesabaran **+10%** (sudah dikerjakan) | Anda bilang "kesulitan normal aja dikurangi". Ini satu-satunya angka yang diubah, supaya playtest ketiga mengukur satu hal, bukan dua |
+| Tombol "Mulai" → **level select** untuk mode terakhir, bukan level langsung | Keputusan B supaya tetap ada satu langkah (*mode → level → main*) |
+| Chip **lebar tetap 1/3**, animasi slide dari kanan 350ms | Chip yang meregang membuat antrean terlihat seperti banner. Lebar tetap + animasi lebih informatif |
+| Kesabaran **dimulai setelah chip tiba** (+1 detik/pelanggan) | Aturan 11: walkout tidak boleh dipicu chip yang masih slide, belum bisa diketuk |
+| `queue__next` teks tetap di bawah strip | Ditunda — belum ada yang memutuskan isi slot kosong |
 | Roster per mode | Belum diputuskan, menunggu playtest |
 | Mode tetap 3, bukan 15 level datar | Sudah ditinjau: 3 x 5 = 15 level juga, mode memetakan ke kelas 7/8/9, dan tangga operator per mode adalah alat keamanan solvability |
 
@@ -38,15 +48,17 @@ cek dulu daftar ini supaya tidak dibahas ulang.
 - 14 bug ditemukan dan diperbaiki, **tidak ada satu pun dari unit test**
 - 12 dari 15 level ternyata tidak pernah bisa tamat
 - 42-66% soal Hard tidak bisa diportion
-- Rata-rata 43-100% soal punya jalan pintas yang jauh lebih pendek dari rantai
-  yang dirancang, di semua 15 rung
+- ~~Rata-rata 43-100% soal punya jalan pintas~~ → **diukur ulang: 0-25%**
+  (lihat bagian 4 dan `CHANGELOG.md` bagian Measured). Angka lama terlalu
+  tinggi karena pengukuran lama tidak ekshaustif
 - Drag tidak pernah terlihat bergerak, dan drop-nya diam-diam gagal
+- `2³ = 8` tidak bisa disajikan, padahal jawabannya sudah benar di piring
 
 ### Urutan besok
 
-1. **Anda playtest** dengan alur yang sudah berubah, isi `PLAYTEST.md`, kirim.
-2. **Paralel: saya kerjakan kaidah operasi** (bagian 4 di bawah), karena tidak
-   bergantung pada angka spawner.
+1. **Anda playtest** dengan build kaidah operasi, isi `PLAYTEST.md`, kirim.
+2. **Paralel: saya kerjakan Commit 5** (musik latar) — tidak bergantung pada
+   angka spawner.
 3. Setelah data playtest masuk: kalibrasi angka (bagian 2).
 
 ### Yang paling penting untuk diketahui sebelum mulai
@@ -101,23 +113,43 @@ karena salah klik.
       ditegaskan sebagai jalur kedua (lebih cepat di layar kecil, tapi dua
       tempat untuk dipelajari). Playtest kedua yang memutuskan.
 
-### 4. Kaidah operasi - 1-2 hari
+### 4. Kaidah operasi - [x] selesai
 
-Sudah diputuskan, belum dikerjakan. Menggantikan left-to-right yang dikunci di
-PRD §4 dan AGENTS.md aturan 3, jadi tiga dokumen itu ikut direvisi.
+Sudah dikerjakan 28 September 2026. PR D §4 ternyata **tidak pernah** mengunci
+left-to-right — hanya AGENTS.md aturan 3 yang melakukannya, jadi hanya satu
+dokumen yang perlu direvisi di sana, bukan tiga.
 
-- [ ] `evaluate.js` parse rantai dengan kaidah operasi. Piring tetap menampilkan
-      nilai sebenarnya, cuma melompat, bukan rusak
-- [ ] `generator.js`: `x` dan `:` tidak boleh diikuti `+` atau `-` dalam satu
-      rantai, supaya peel backward tetap valid
-- [ ] Solver smoke test ikut kaidah, plus test regresi `2 + 3 x 4` = 14
-- [ ] Semua teks "left-to-right" diganti jadi kaidah operasi di i18n, README,
-      AGENTS.md aturan 3, dan PRD §4
-- [ ] **Pastikan jalan pintas soal tidak makin banyak.** Menghormati kaidah
-      menambah cara mencapai target, jadi proporsi soal yang bisa diselesaikan
-      dalam satu atau dua langkah harus diukur ulang sebelum dan sesudah
+- [x] `evaluate.js` parse rantai dengan kaidah operasi (shunting-yard). Piring
+      tetap menampilkan nilai sebenarnya, cuma melompat, bukan rusak
+- [x] `generator.js` backward peel sadar precedens. `x` dan `:` tidak boleh
+      diikuti `+` atau `-` dalam satu rantai, supaya peel backward tetap valid
+- [x] Solver smoke test ikut kaidah, plus test regresi `2 + 3 x 4` = 14
+- [x] Semua teks "left-to-right" diganti jadi kaidah operasi di README,
+      AGENTS.md aturan 3, SUBMISSION.md, dan CHANGELOG
+- [x] **Jalan pintas soal diukur ulang sebelum dan sesudah.** Hasilnya berbalik
+      dari dugaan awal: shortcut rate justru turun dari 0-25% jadi 0-15%. Rantai
+      yang dirancang jadi lebih panjang, jadi tidak ada operator ladder yang
+      perlu diketatkan
 
-### 5. Submission - 3-4 jam (bisa paralel dengan langkah 1-4)
+### 5. Musik latar - 1 jam
+
+`theme.mp3` sudah ada di root repo (1,06 MB, untracked). Belum dipasang.
+
+- [ ] `git mv theme.mp3 assets/placeholder/` supaya konsisten dengan aset lain
+- [ ] `src/ui/audio.js` baru (~40 baris): mulai saat interaksi pertama
+      (browser memblokir autoplay), pause saat `visibilitychange` ke hidden
+      supaya hemat baterai, status mute di `localStorage` (`cn.muted`),
+      `try/catch` di sekitar `play()` supaya game tetap jalan tanpa file
+- [ ] `index.html`: `<audio id="bgm" loop preload="none">` + tombol mute di HUD
+- [ ] `i18n.js`: label tombol mute + "Musik aktif"/"Musik mati", EN dan ID
+- [ ] `styles/`: tombol mute 44x44px, tidak menggeser layout HUD
+
+**Tiga pertanyaan yang belum dijawab** (open, belum diputuskan):
+- Musik bunyi di menu juga, atau cuma saat main?
+- Loop selama satu level, atau terus selama aplikasi terbuka?
+- Efek suara (pelanggan datang, walkout, sajikan) perlu, atau dilewati dulu?
+
+### 6. Submission - 3-4 jam (bisa paralel dengan langkah 1-4)
 
 - [ ] Video demo 1-2 menit, dari rekaman playtest
 - [ ] Deskripsi proyek, sudah ada di `SUBMISSION.md`
@@ -306,13 +338,8 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
 - [x] Kepadatan pecahan Medium di bawah Hard, jadi urutan mode berlaku pada
       materi dan bukan cuma pada operator
 - [x] `npm run check:styles`: variabel CSS yang hilang tidak bisa lolos diam-diam
-- [ ] **Angka kesabaran belum diubah.** Hitungan menunjukkan anggaran per
-      hidangan turun sekitar 38% dari level 1 ke level 5 di ketiga mode
-      (Easy 23,8s ke 14,9s, Medium 20,0s ke 12,1s, Hard 17,0s ke 10,5s) sementara
-      beban aritmetiknya naik. Playtest kedua bilang tingkat
-      kesulitan "normal aja dikurangi" tapi angka spawner dan kesabaran
-      **sengaja tidak disentuh** sampai playtest ketiga, supaya tidak ada dua
-      kali pengujian dengan game yang berbeda.
+- [x] Angka kesabaran +10% di ketiga mode (Easy 55→53→51→48→46, Medium 48→46→44→41→37, Hard 42→40→36→33→31). Playtest kedua melaporkan selesai dengan bar kesabaran merah di Medium; angka sengaja tidak disentuh lagi sampai playtest ketiga.
+- [x] **Antrean animasi selesai:** chip lebar tetap 1/3 layar, slide-in 350ms dari kanan, FLIP geser kiri, flag `arriving` +1 detik grace, countdown disembunyikan selama animasi. `queue__next` teks tertunda — tidak diputuskan isi slot kosong.
 - [ ] Uji drag di perangkat asli: apakah drag merebut scroll halaman
 - [ ] Styling akhir dan polish
 
@@ -338,6 +365,10 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
       menyajikan 4 pelanggan, bukan 6. Playtest yang memutuskan: kalau Hard L1
       terasa terlalu tipis atau terlalu singkat, roster per mode adalah dial
       pertama yang diputar.
+- [ ] **`queue__next` teks.** Chip yang baru datang sekarang hanya mengisi
+      satu slot, jadi ada slot kosong di antrean. Teks "Berikutnya 8 detik"
+      bisa dipindahkan ke slot kosong, atau dibiarkan di bawah strip. Belum
+      ada yang memutuskan — tunda sampai playtest ketiga.
 - [x] **Tangga operator biner per level sudah diterapkan di rak.**
       `assets.js` pernah menaruh keempat operator biner di setiap level dan
       mengabaikan `band.binaryOps`, jadi Easy L1 menampilkan `x` dan `/` padahal

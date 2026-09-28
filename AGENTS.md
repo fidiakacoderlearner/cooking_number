@@ -1,6 +1,6 @@
 # AGENTS.md
 - [ ] Perubahan tercatat di `CHANGELOG.md` dan `PLAN.md` terupdate
-- [ ] Sesuai PRD (left-to-right, chaining bertahap, subset bebas, single hiding)
+- [ ] Sesuai PRD (kaidah operasi, chaining bertahap, subset bebas, single hiding)
 11. **Walkout adalah konsekuensi yang disengaja, bukan efek samping**
     Pelanggan walkout berarti pemain gagal. Tapi hal yang merusak hanya boleh
     dipicu oleh aksi yang jelas dan terlihat. Dilarang membuat walkout bisa
@@ -22,9 +22,17 @@
 2. **Unit test adalah gatekeeper**
    Semua perubahan wajib lolos `npm test`. Jangan menurunkan coverage.
 
-3. **Left-to-right dan aritmetika eksak adalah aturan tetap**
-   Dilarang mengganti evaluator ke operator precedence. Dilarang mengganti
-   `rational.js` ke floating point.
+3. **Kaidah operasi dan aritmetika eksak adalah aturan tetap**
+   Evaluator memakai kaidah operasi: `×` dan `÷` mengikat lebih kuat dari `+`
+   dan `−`, dan unary (`²`, `³`, `√`) menempel pada angka di depannya. Ini
+   menggantikan left-to-right yang berlaku sampai 28 September 2026, karena
+   playtest kedua membuktikan `-5 + -2 × -1` dibaca 7 padahal kaidah bilang -3,
+   dan kaidah itulah yang diajarikan di SMP. Dilarang mengembalikan evaluator ke
+   left-to-right. Dilarang mengganti `rational.js` ke floating point.
+   Sumber kebenaran precedence adalah `PRECEDENCE` di `src/core/operators.js`;
+   `evaluate.js` dan `generator.js` harus membacanya, tidak boleh menuliskannya
+   sendiri, supaya soal tidak pernah dibuat dengan satu aturan dan dinilai
+   dengan aturan lain.
 
 4. **UI terpisah dari core**
    Core tidak boleh bergantung pada DOM atau `interact.js`. UI hanya memanggil
@@ -58,10 +66,18 @@
     sebelum pemain disajikan.
 
 12. **Bahan tidak boleh bercampur antar-pelanggan**
-    Angka dan operator di stand adalah milik pelanggan yang sedang dimasak.
-    Dilarang memakai satu pool bahan gabungan untuk beberapa pelanggan, karena
-    itu membuat pemain bisa menghabiskan bahan milik satu pesanan dan membuat
-    level mustahil diselesaikan.
+   Angka dan operator di stand adalah milik pelanggan yang sedang dimasak.
+   Dilarang memakai satu pool bahan gabungan untuk beberapa pelanggan, karena
+   itu membuat pemain bisa menghabiskan bahan milik satu pesanan dan membuat
+   level mustahil diselesaikan.
+
+13. **Tampilan stand harus jujur soal aritmetikanya**
+   Yang tampil di stand harus dibaca sebagai ekspresi yang sama dengan yang
+   dihitung core. Di bawah kaidah operasi, `√` ditulis mengelilingi angka dan
+   pangkat sebagai superscript, jadi bentuk keduanya benar hanya kalau unary
+   memang menempel pada operand. Dilarang menampilkan bentuk yang terlihat
+   seperti operator lain: `2 + 3 × 4` yang tampil sebagai 20-adalah contoh
+   kegagalan yang lolos ke pemain.
 
 ## Peran
 
@@ -116,7 +132,7 @@
       `src/ui`
 - [ ] Quality invariants puzzle terpenuhi (no-op, target tidak tercapai dini,
       tidak ada round-trip sia-sia, nilai tidak nol di tengah, display bersih)
-- [ ] Sesuai PRD (left-to-right, chaining bertahap, subset bebas, single hiding)
+- [ ] Sesuai PRD (kaidah operasi, chaining bertahap, subset bebas, single hiding)
 - [ ] Tidak ada nyawa, penalti skor, atau pelanggan pengganti yang tersisa
 - [ ] Interval spawner tidak pernah jatuh di bawah 60% nilai dasarnya
 - [ ] Target sentuh tidak ada yang lebih kecil dari 44x44px
