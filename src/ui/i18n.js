@@ -87,6 +87,8 @@ const STRINGS = {
     'action.start': 'Play',
     'action.howToPlay': 'How to play',
     'action.toggleLang': 'Change language',
+    'action.toggleMute': 'Mute sound',
+    'action.unmute': 'Unmute sound',
     'action.backToMenu': 'Back to menu',
 
     'rules.title': 'How to play',
@@ -201,6 +203,8 @@ const STRINGS = {
     'action.start': 'Mulai',
     'action.howToPlay': 'Aturan Main',
     'action.toggleLang': 'Ganti bahasa',
+    'action.toggleMute': 'Matikan suara',
+    'action.unmute': 'Nyalakan suara',
     'action.backToMenu': 'Kembali ke menu',
 
     'rules.title': 'Aturan Main',

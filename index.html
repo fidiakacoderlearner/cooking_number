@@ -82,6 +82,10 @@
   <header class="hud">
     <button class="hud__quit" type="button" data-action="back-to-menu"
             data-i18n-aria="action.backToMenu" aria-label="Back to menu" title="Back to menu">&#9776;</button>
+    <button class="hud__mute" type="button" data-action="toggle-mute"
+            data-i18n-aria="action.toggleMute" aria-label="Mute sound" title="Mute sound">
+      <span data-audio-mute-icon aria-hidden="true">&#9834;</span>
+    </button>
     <div class="hud__cell hud__cell--level">
       <span class="hud__label" data-i18n="hud.level">Level</span>
       <span class="hud__value" data-hud-level>1</span>
@@ -218,6 +222,12 @@
     </div>
   </div>
 </div>
+
+<!-- The level music. `preload="none"` so the file is not pulled down on a phone
+     that may only be opened for a minute, and `loop` because the track is a
+     loopable bed rather than a song with an ending. Playback is armed on the
+     first tap, never on load: browsers block audio before a gesture. -->
+<audio data-audio-music src="assets/placeholder/theme.mp3" preload="none" loop></audio>
 
 <script src="vendor/interact.min.js"></script>
 <script type="module" src="src/ui/app.js"></script>

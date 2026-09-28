@@ -10,6 +10,7 @@ import { completeLevel, unlockedFor } from './progress.js';
 import * as S from './state.js';
 import * as view from './view.js';
 import * as drag from './drag.js';
+import * as audio from './audio.js';
 
 let state = null;
 let activeMode = 'easy';
@@ -51,6 +52,10 @@ function startTimer() {
     // replay the same walkout message once a second, forever.
     if (events.walked.length > 0) {
       view.shake(view.dom.queue);
+      // One sound per tick, not per customer: three chips giving out on the same
+      // second should read as one bad moment rather than three overlapping
+      // stings.
+      audio.playWalkout();
       view.feedback(t('result.lost'), 'bad');
     }
 
@@ -91,6 +96,7 @@ function handleServeTo(orderId) {
   if (outcome.correct) {
     view.steamBurst();
     view.bump(view.dom.hudScore);
+    audio.playServe();
     view.feedback(
       t('result.served', { points: outcome.points, pace: t(paceFor(outcome)) }),
       'good',
@@ -98,6 +104,7 @@ function handleServeTo(orderId) {
   } else {
     // A walkout is the most destructive thing in the game, so it is never silent.
     view.shake(view.dom.queue);
+    audio.playWalkout();
     view.feedback(
       t('work.wrong', {
         value: toDisplayString(outcome.value),
@@ -116,6 +123,7 @@ function handleServeTo(orderId) {
 
 function showLevelDone() {
   stopTimer();
+  audio.stopMusic();
   const served = S.ordersServed(state);
   const isFinal = state.level >= LEVELS_PER_MODE;
   // Only a finished level may open the next one.
@@ -140,10 +148,12 @@ function startLevel(mode, level) {
   view.feedback(null);
   view.render(state);
   startTimer();
+  audio.startMusic();
 }
 
 function backToMenu() {
   stopTimer();
+  audio.stopMusic();
   state = null;
   pendingOrderId = null;
   view.showOverlay(null);
@@ -215,6 +225,10 @@ function handleAction(action, dataset) {
       view.showOverlay('rules');
       break;
 
+    case 'toggle-mute':
+      view.setMuteIcon(audio.toggleMute());
+      break;
+
     case 'close-rules':
       view.showOverlay(null);
       // Focus has to come back to the button that opened the dialog, or a
@@ -226,6 +240,10 @@ function handleAction(action, dataset) {
     case 'toggle-lang':
       toggleLanguage();
       view.applyStaticStrings();
+      // The mute label is a translated string, so the icon has to be re-read
+      // after the language changes or the button would read "Mute" while
+      // actually unmuting.
+      view.setMuteIcon(audio.isMuted());
       if (state) view.render(state);
       else if (document.body.dataset.screen === 'levels') {
         view.renderLevelGrid(activeMode, unlockedFor(activeMode));
@@ -305,6 +323,8 @@ function handleAction(action, dataset) {
 export function init() {
   view.cacheDom();
   view.applyStaticStrings();
+  audio.init();
+  view.setMuteIcon(audio.isMuted());
 
   drag.configure({ onDrop: handleDrop });
   drag.init(document);

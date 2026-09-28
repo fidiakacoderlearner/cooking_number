@@ -9,6 +9,7 @@ import { customersForLevel, MAX_ON_SCREEN } from '../core/difficulty.js';
 import { t } from './i18n.js';
 import { ASSETS, OPERATORS, operatorsForMode, operatorsForLevel, customerFor } from './assets.js';
 import * as S from './state.js';
+import * as audio from './audio.js';
 
 const el = (sel) => document.querySelector(sel);
 
@@ -49,6 +50,7 @@ export function cacheDom() {
   dom.overlayConfirm = el('[data-overlay="confirm"]');
   dom.overlayConfirmBody = el('[data-confirm-body]');
   dom.overlayRules = el('[data-overlay="rules"]');
+  dom.muteIcon = el('[data-audio-mute-icon]');
 }
 
 export function showScreen(name) {
@@ -219,6 +221,27 @@ export function renderHud(state) {
   dom.hudProgress.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
 }
 
+/**
+ * Show whether sound is on, as a note head with a slash when it is not.
+ *
+ * The label is read out as well as drawn, so a screen reader hears "Mute sound"
+ * or "Unmute sound" rather than an unpronounceable music symbol. The icon is
+ * `aria-hidden` in the markup and the button carries the real name.
+ */
+export function setMuteIcon(muted) {
+  const icon = el('[data-audio-mute-icon]');
+  if (!icon) return;
+  icon.innerHTML = muted
+    ? '&#9834;<span class="hud__mute-slash" aria-hidden="true">/</span>'
+    : '&#9834;';
+  const button = icon.closest('button');
+  if (button) {
+    const key = muted ? 'action.unmute' : 'action.toggleMute';
+    button.setAttribute('aria-label', t(key));
+    button.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Customer queue
  * ------------------------------------------------------------------ */
@@ -300,6 +323,11 @@ export function renderChips(state) {
     if (!arrivedChipIds.has(order.id)) {
       chip.classList.add('anim-arrive');
       arrivedChipIds.add(order.id);
+      // Fired here, at the moment the chip starts walking in, not on the
+      // animation's end: the sound belongs to the door opening, not to the
+      // customer reaching their place. `arrivedChipIds` is what keeps this to
+      // one per customer.
+      audio.playArrive();
       // Tappable the moment the chip stops moving, which is well before its
       // patience clock starts: the clock is driven by the once-a-second tick and
       // the animation is not. Letting the player act on what they can already

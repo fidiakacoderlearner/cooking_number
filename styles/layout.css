@@ -148,7 +148,8 @@ body {
   padding-bottom: 10px;
 }
 
-.hud__quit {
+.hud__quit,
+.hud__mute {
   width: var(--tap-min);
   min-height: var(--tap-min);
   display: flex;
@@ -159,6 +160,14 @@ body {
   border: var(--stroke) solid var(--ink);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-hard-sm);
+}
+
+/* The slash is drawn as a real character rather than a filter on the whole
+   button, so muting does not dim the outline and make the control look
+   disabled. It is aria-hidden in the markup; the button carries the name. */
+.hud__mute-slash {
+  margin-left: 1px;
+  font-weight: 800;
 }
 
 .hud__cell {

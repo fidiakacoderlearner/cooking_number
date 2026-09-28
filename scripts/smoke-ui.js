@@ -54,6 +54,7 @@ const MIME = {
   '.webp': 'image/webp',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.mp3': 'audio/mpeg',
 };
 
 /**
@@ -1565,6 +1566,45 @@ async function main() {
         + `${offscreen.length > 0 ? ` (${fit.scrollW}px needed, ${offscreen.length} chip(s) outside the view)` : ''}`,
       );
       note(`   a full queue needs ${fit.scrollW}px of a ${fit.viewport}px viewport`);
+    }
+
+    console.log('\n--- Sound is optional, and the way to turn it off is there');
+    const sound = await page.evaluate(() => {
+      const music = document.querySelector('[data-audio-music]');
+      const mute = document.querySelector('[data-action="toggle-mute"]');
+      return {
+        // A missing or unreadable file must not be fatal, so this is checked as
+        // "either it is there, or the game carried on without it" rather than
+        // as a hard requirement on the asset being present.
+        hasMusicTag: Boolean(music),
+        hasMute: Boolean(mute),
+        muteLabel: mute?.getAttribute('aria-label') ?? '',
+        mutePressed: mute?.getAttribute('aria-pressed') ?? null,
+        musicLoop: music?.hasAttribute('loop') ?? false,
+        preload: music?.getAttribute('preload') ?? '',
+      };
+    });
+    must(sound.hasMute, 'the mute button is on screen during a level');
+    must(
+      // The smoke run leaves the UI in Indonesian after the language toggle test,
+      // so match both languages rather than assuming English.
+      /mute|unmute|suara/i.test(sound.muteLabel),
+      `the mute button announces what it will do (aria-label "${sound.muteLabel}")`,
+    );
+    must(
+      sound.mutePressed === 'true' || sound.mutePressed === 'false',
+      `the mute button reports its state (aria-pressed "${sound.mutePressed}")`,
+    );
+    if (sound.hasMusicTag) {
+      must(sound.musicLoop, 'the level music is set to loop');
+      // `none` is the point of the preload attribute: a 1MB track should not be
+      // pulled down by a page that may be opened for a minute and closed.
+      must(
+        sound.preload === 'none',
+        `the music is not preloaded (preload="${sound.preload}")`,
+      );
+    } else {
+      note('   no music tag on the page: the game is running without it');
     }
 
     console.log('\n--- Clean console');

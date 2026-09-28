@@ -131,23 +131,30 @@ dokumen yang perlu direvisi di sana, bukan tiga.
       yang dirancang jadi lebih panjang, jadi tidak ada operator ladder yang
       perlu diketatkan
 
-### 5. Musik latar - 1 jam
+### 5. Musik latar dan efek suara - [x] selesai
 
-`theme.mp3` sudah ada di root repo (1,06 MB, untracked). Belum dipasang.
+`theme.mp3` sudah ada dan sudah dipasang. Tiga pertanyaan sudah dijawab: musik
+hanya saat main, loop per level, efek suara perlu.
 
-- [ ] `git mv theme.mp3 assets/placeholder/` supaya konsisten dengan aset lain
-- [ ] `src/ui/audio.js` baru (~40 baris): mulai saat interaksi pertama
-      (browser memblokir autoplay), pause saat `visibilitychange` ke hidden
-      supaya hemat baterai, status mute di `localStorage` (`cn.muted`),
-      `try/catch` di sekitar `play()` supaya game tetap jalan tanpa file
-- [ ] `index.html`: `<audio id="bgm" loop preload="none">` + tombol mute di HUD
-- [ ] `i18n.js`: label tombol mute + "Musik aktif"/"Musik mati", EN dan ID
-- [ ] `styles/`: tombol mute 44x44px, tidak menggeser layout HUD
+- [x] `theme.mp3` dipindahkan ke `assets/placeholder/`
+- [x] `src/ui/audio.js` baru: musik loop per level, mulai setelah interaksi
+      pertama (browser memblokir autoplay), pause saat `visibilitychange` ke
+      hidden, status mute di `localStorage` (`cn.muted`), `try/catch` di sekitar
+      `play()` supaya game tetap jalan tanpa file
+- [x] `index.html`: `<audio data-audio-music loop preload="none">` + tombol
+      mute di HUD
+- [x] `i18n.js`: `action.toggleMute` + `action.unmute`, EN dan ID
+- [x] `styles/`: tombol mute 44x44px, slash saat mute, tidak menggeser layout
+- [x] Efek suara: `playArrive` (saat chip mulai masuk), `playServe` (saat
+      hidangan disajikan), `playWalkout` (saat pelanggan pergi) — disintesis
+      dengan Web Audio API, bukan file. Efeknya instan dan tidak menambah aset
+      biner
+- [x] Smoke test: assertion baru untuk mute button (ada, aria-label, aria-pressed,
+      loop, preload="none")
 
-**Tiga pertanyaan yang belum dijawab** (open, belum diputuskan):
-- Musik bunyi di menu juga, atau cuma saat main?
-- Loop selama satu level, atau terus selama aplikasi terbuka?
-- Efek suara (pelanggan datang, walkout, sajikan) perlu, atau dilewati dulu?
+**Catatan:** efek suara masih placeholder (tone oscillator, bukan desain suara
+beneran). Kalau tim punya file SFX, cukup ganti isi `playArrive`/`playServe`/
+`playWalkout` di `audio.js` — titik panggilnya tidak berubah.
 
 ### 6. Submission - 3-4 jam (bisa paralel dengan langkah 1-4)
 

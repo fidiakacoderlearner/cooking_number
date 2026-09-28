@@ -47,6 +47,13 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - `scripts/measure-shortcuts.js` — mengukur berapa persen soal yang bisa
   diselesaikan dengan lebih sedikit tile daripada rantai yang dirancang.
   Script ini yang jadi angka sebelum/sesudah untuk perubahan aturan hitung.
+- **Sistem suara lengkap:** `src/ui/audio.js` dengan musik loop per level,
+  tombol mute persisten, dan tiga efek suara (datang, sajikan, walkout)
+  yang disintesis oleh Web Audio API — tanpa file tambahan. Tombol mute
+  di HUD, status persisten di `localStorage`, dan `play()` yang aman dari
+  pemblokiran autoplay browser.
+- `scripts/smoke-ui.js`: assertion baru untuk musik (loop, preload="none")
+  dan tombol mute (ada, aria-label, aria-pressed).
 - **Tombol "Mulai" dan overlay "Aturan Main" di menu.** Aturan main dulu hanya
   ada di kepala pemain yang membuatnya; sekarang tertulis di game, dengan
   kaidah operasi, urutan operator, dan apa yang terjadi kalau hidangan salah
