@@ -22,8 +22,8 @@ npm run smoke      # main Easy L1, Medium L1, Hard L1, dan Hard L3 di Chrome sun
 npm run smoke:all  # kelima belas kombinasi mode x level
 npm run inspect    # cetak contoh soal per mode untuk diperiksa manual
 npm run assets     # buat ulang placeholder WebP (butuh Python + Pillow)
-npm run check:imports
-npm run check:styles   # variabel CSS yang dipakai tapi tidak didefinisikan
+npm run check:imports   # import tak terpakai di src/, test/, scripts/
+npm run check:styles    # var CSS hilang ATAU tak terpakai
 npm run check          # keduanya
 ```
 
@@ -164,11 +164,12 @@ Hal-hal yang tidak terlihat dari kode, tapi sangat terasa ketika bermain:
   level. Butuh sekitar 25 menit nyata, jadi bukan quality gate setiap commit.
 - `npm run inspect` — mencetak contoh soal untuk diperiksa ulang secara
   pedagogis dengan mata.
-- `npm run check:imports` — mendeteksi import yang tidak terpakai di `src/core`
-  dan `src/ui`.
+- `npm run check:imports` — mendeteksi import yang tidak terpakai. Menelusuri
+  filesystem (`src/`, `test/`, `scripts/`, bukan `vendor/`), jadi file baru
+  otomatis tercakup. **Tidak** memeriksa export yang tidak terpakai.
 - `npm run check:styles` — mendeteksi `var(--nama)` yang tidak pernah
-  didefinisikan. Karena variabel yang hilang hilang diam-diam, sebuah bar
-  kesabaran pernah berubah jadi abu karena itu.
+  didefinisikan **atau** tidak pernah dipakai. Karena variabel yang hilang
+  hilang diam-diam, sebuah bar kesabaran pernah berubah jadi abu karena itu.
 
 ## Roadmap
 

@@ -1751,6 +1751,33 @@ async function main() {
     const idTagline = await page.$eval('[data-i18n="app.tagline"]', (n) => n.textContent);
     must(/Masak/.test(idTagline), `the tagline is localised: "${idTagline}"`);
 
+    // The customer queue is a labelled landmark, so its name has to be localised
+    // too. The toggle above already moved the page to Indonesian, so the label
+    // read here is the Indonesian one. Two toggles are used, leaving the page
+    // back on Indonesian for the operator checks that follow.
+    const queueInIndonesian = await page.$eval(
+      '[data-i18n-aria="queue.label"]',
+      (n) => n.getAttribute('aria-label'),
+    );
+    await toggleLanguage(page);
+    const queueInEnglish = await page.$eval(
+      '[data-i18n-aria="queue.label"]',
+      (n) => n.getAttribute('aria-label'),
+    );
+    must(
+      queueInIndonesian && queueInEnglish && queueInIndonesian !== queueInEnglish,
+      `the queue landmark renames with the language (id="${queueInIndonesian}", en="${queueInEnglish}")`,
+    );
+    await toggleLanguage(page);
+    const queueBackToIndonesian = await page.$eval(
+      '[data-i18n-aria="queue.label"]',
+      (n) => n.getAttribute('aria-label'),
+    );
+    must(
+      queueBackToIndonesian === queueInIndonesian,
+      'the queue landmark name comes back when the language is toggled again',
+    );
+
     console.log('\n--- Operator labels follow the language');
     // Read the rack in English, toggle, read it again, and compare. A label that
     // never changes is an accessibility regression no other check would catch,

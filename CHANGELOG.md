@@ -10,12 +10,21 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Removed
 - **Sembilan export mati.** `EVALUATE`, `RATIONAL`, `DIFFICULTY`, `GENERATOR`,
   `VIEW`, `STATE`, `PROGRESS`, `I18N` (delapan `export const X = { ... }` yang
-  hanya половивah salinan nama yang sudah di-export satu per satu) dan
+  hanya mengulang salinan nama yang sudah di-export satu per satu) dan
   `isDragReady` di `drag.js`. Tidak satu pun pernah diimport. Semuanya muncul
   karena tidak ada gate yang melihat export — `check-imports.js` hanya
   memeriksa import, dan itu yang membuat 9 file ini bisa menumpuk tanpa terlihat.
   Menghapus barrel `DIFFICULTY` membuat import `rat` di `difficulty.js` ikut
   mati, jadi import itu ikut dibuang.
+- **Gate deteksi export mati tidak jadi dibuat.** Sempat ditulis lalu dibuang saat
+  verifikasi: `controller.js` dan `view.js` mengimpor lewat `import * as S` dan
+  `import * as view`, dan pemindai tidak bisa melihat nama member yang dipanggil
+  melalui namespace itu, sehingga 40+ export yang sebenarnya hidup
+  (`renderHud`, `activeOrders`, `dom`, dan seterusnya) terbaca mati. Memperbaiki
+  pemindai berarti menulis resolver import, dan itu kerja yang belum dibayar
+  kasusnya. **Konsekuensinya: sembilan export di atas dihapus manual, dan tidak
+  ada gate yang mencegah export mati menumpuk lagi.** `check-imports.js` hanya
+  memeriksa import.
 - **Dua puluh empat baris string i18n mati** (18 key × EN dan ID). Key yang
   tidak lagi dirujuk siapa pun: `queue.empty`, `customer.wants`,
   `customer.cooking`, `customer.served`, `customer.walkedWrong`,
@@ -60,14 +69,14 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
     placeholder `{target}` dan `{tiles}`, jadi teks static tanpa placeholder
     justru lebih baik daripada teks kosong kalau JS gagal memuat.
 - **`check-imports.js` sekarang memindai filesystem, bukan daftar hardcoded.**
-  Daftar 21 path-nya pernah_bnMedal tertinggal: `src/ui` tidak ada selama dua
-    rilis, dan itulah cara dua import mati bertahan (`CHANGELOG.md` mencatatnya).
-    Sekarang `readdirSync` menelusuri `src/`, `test/`, dan `scripts/`, jadi file
-    baru otomatis tercakup dan daftarnya tidak bisa basi. `vendor/` sengaja
-    tidak dipindai: `interact.min.js` adalah bundel pihak ketiga dan tidak ada
-    aturan di sini yang ditulis untuk kode ter-minify. Efek sampingnya langsung
-    terlihat — scan yang lebih luas langsung menangkap dua import mati yang
-    selama ini di luar jangkauan gate (`audio.js` dan `difficulty.js`).
+  Daftar 21 path-nya pernah tertinggal: `src/ui` tidak ada selama dua
+  rilis, dan itulah cara dua import mati bertahan (`CHANGELOG.md` mencatatnya).
+  Sekarang `readdirSync` menelusuri `src/`, `test/`, dan `scripts/`, jadi file
+  baru otomatis tercakup dan daftarnya tidak bisa basi. `vendor/` sengaja
+  tidak dipindai: `interact.min.js` adalah bundel pihak ketiga dan tidak ada
+  aturan di sini yang ditulis untuk kode ter-minify. Efek sampingnya langsung
+  terlihat — scan yang lebih luas langsung menangkap dua import mati yang
+  selama ini di luar jangkauan gate (`audio.js` dan `difficulty.js`).
 - **`check-styles.js` gagal kalau ada variabel CSS tak terpakai.** Sebelumnya
   `--tomato-dark` hanya dicetak ke baris "Tidak dipakai" lalu script keluar 0,
   jadi `npm run check` hijau padahal ada warna yang tidak pernah dipanggil.

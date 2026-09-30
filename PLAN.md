@@ -17,6 +17,8 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 > ```
 > git log --oneline -5          # 5 commit terakhir, semua hijau
 > npm test                      # harus 160/160
+> npm run check                 # harus hijau: tidak ada import mati, tidak ada
+>                               #   var CSS tak terpakai / hilang
 > ```
 >
 > **Yang harus Anda lakukan sendiri (tidak bisa dikerjakan dari meja):**
@@ -50,14 +52,21 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 > **Kalau playtest sudah kirim:** saya kerjakan bagian 2 di bawah (kalibrasi
 > angka) dan bagian Fase 4 (submission).
 >
-> **Kalau belum:** tidak ada pekerjaan kode yang tertunda. Semua yang tersisa
-> butuh tangan Anda di HP asli atau di formulir.
+> **Kalau belum:** tidak ada pekerjaan kode yang **mengganggu submission**.
+> Yang tersisa butuh tangan Anda di HP asli atau di formulir. Dua item kode
+> masih terbuka, keduanya non-blocking dan tertunda dengan sengaja: gate key
+> i18n tak terpakai, dan gate export mati yang tidak jadi dibuat (lihat
+> "Urutan kerja 30 September 2026" item 4 untuk alasannya). Keduanya hanya
+> melindungi kode dari validate ulang, bukan gameplay — tidak ada yang perlu
+> dikerjakan sebelum playtest ketiga.
 
 ### Urutan kerja 30 September 2026
 
-Tiga hal dari rencana awal (kartu mode, push, deploy). Semuanya sudah selesai
-pada 30 September; urutan dikerjakan di-swap karena diminta pengguna (CSS dulu,
-push setelah), dan GitHub Pages diganti Vercel.
+Tiga hal dari rencana awal (kartu mode, push, deploy), semuanya selesai pada 30
+September; urutan dikerjakan di-swap karena diminta pengguna (CSS dulu, push
+setelah), dan GitHub Pages diganti Vercel. Item 4 ditambahkan setelahnya atas
+permintaan pengguna dan **bukan** dari rencana awal — pendekatannya berbeda
+karena tidak menyentuh gameplay sama sekali.
 
 1. **Kartu mode di layar pilih mode tidak selebar tombol Back — [x] selesai.**
    Dilaporkan manual di layar lebar (komputer): tiga kartu mode terlihat lebih
@@ -104,6 +113,19 @@ push setelah), dan GitHub Pages diganti Vercel.
    2026 atas permintaan pengguna setelah memindai placeholder. Semua perubahan
    bersifat zero-behavior-change: test tetap 160/160, smoke test hijau penuh.
    Rinciannya ada di `CHANGELOG.md` bagian "Removed" dan "Fixed".
+   - **Gate deteksi export mati TIDAK jadi ada.** Ini sempat dirancang dan
+     ditulis, lalu dibuang saat verifikasi: `controller.js` dan `view.js`
+     mengimpor dengan `import * as S` / `import * as view`, dan pemindai
+     tidak bisa melihat nama member yang dipanggil lewat namespace itu. Hasilnya
+     40+ export yang sebenarnya hidup (`renderHud`, `activeOrders`, `dom`, dan
+     seterusnya) terbaca sebagai mati. Memperbaiki pemindai berarti menulis
+     resolver import, dan itu kerja yang belum dibayar kasusnya. Jadi **9 export
+     mati di bawah dihapus manual, bukan oleh gate**, dan **tidak ada yang
+     mencegah export mati menumpuk lagi** — `check-imports.js` sekarang hanya
+     memeriksa import. Kalau nanti mau menutup ini, urutan yang masuk akal:
+     jalankan `grep -c "export "` per file sebagai review manual sesekali, atau
+     tambahkan gate terpisah yang hanya memeriksa file yang tidak diimpor lewat
+     namespace dari luar.
    - **Hapus 9 export mati:** delapan barrel `export const X = { ... }` di
      `core/evaluate.js`, `core/rational.js`, `core/difficulty.js`,
      `core/generator.js`, `ui/view.js`, `ui/state.js`, `ui/progress.js`,

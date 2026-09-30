@@ -128,8 +128,11 @@
 ## Quality Gates
 
 - [ ] `npm test` lulus 100%
-- [ ] `node scripts/check-imports.js` melaporkan bersih untuk `src/core` **dan**
-      `src/ui`
+- [ ] `npm run check` hijau — `check-imports.js` menelusuri `src/`, `test/`,
+      dan `scripts/` (bukan `vendor/`), dan `check-styles.js` sekarang gagal
+      kalau ada variabel CSS yang tidak didefinisikan **atau** tidak terpakai.
+      Catatan: belum ada gate untuk **export** tak terpakai. Jangan anggap
+      bersih dari export mati hanya karena `npm run check` hijau.
 - [ ] Quality invariants puzzle terpenuhi (no-op, target tidak tercapai dini,
       tidak ada round-trip sia-sia, nilai tidak nol di tengah, display bersih)
 - [ ] Sesuai PRD (kaidah operasi, chaining bertahap, subset bebas, single hiding)
