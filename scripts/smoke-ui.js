@@ -550,17 +550,61 @@ async function clearStand(page) {
   await wait(150);
 }
 
-/** Return to the menu from wherever the game was left, overlay or not. */
+/**
+ * Return to the menu from wherever the game was left, overlay or not.
+ *
+ * Walks one step at a time because the way out is named differently on every
+ * screen, and none of the names is "go to menu" from where the game screen now
+ * stands: the mode and level screens have `back-to-menu` and `back-to-modes`, the
+ * level-complete overlay has `levels-from-overlay` (which lands on the level
+ * select, so it costs a second hop), and the game screen has no direct exit at
+ * all any more. Leaving a level means opening the hamburger panel, tapping
+ * Leave, and answering the question.
+ *
+ * A single lookup for `back-to-menu` used to be enough and now finds nothing on
+ * three of the four screens, which would leave the page stuck for the rest of
+ * the run. Bounded so a broken way out fails the test instead of hanging it.
+ */
 async function backToMenu(page) {
-  await page.evaluate(() => {
-    for (const node of document.querySelectorAll('[data-action="back-to-menu"]')) {
-      if (node.getClientRects().length > 0) {
-        node.click();
-        return;
+  for (let hop = 0; hop < 6; hop += 1) {
+    const where = await page.evaluate(() => document.body.dataset.screen);
+    if (where === 'menu') return;
+
+    if (where === 'game') {
+      // Open the hamburger panel so the Leave button is on screen, then take it.
+      await page.evaluate(() => document.querySelector('[data-action="toggle-game-menu"]')?.click());
+      await wait(150);
+      await page.evaluate(() => document.querySelector('[data-action="leave-level"]')?.click());
+      await wait(200);
+      // Answer the question with the leaving answer; the other one would put the
+      // player straight back in the level this is trying to get out of.
+      const asked = await page.evaluate(
+        () => !document.querySelector('[data-overlay="confirm"]')?.hidden,
+      );
+      if (asked) {
+        await page.click('[data-action="confirm-leave"]');
+        await wait(250);
       }
+      continue;
     }
-  });
-  await wait(200);
+
+    const clicked = await page.evaluate(() => {
+      const sel = '[data-action="back-to-menu"], [data-action="back-to-modes"], [data-action="levels-from-overlay"]';
+      for (const node of document.querySelectorAll(sel)) {
+        if (node.getClientRects().length > 0) {
+          node.click();
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!clicked) return;
+    await wait(200);
+  }
+  must(
+    await page.$('[data-screen-name="menu"]:not([hidden])') !== null,
+    'back reaches the menu from wherever the game was left',
+  );
 }
 
 /**
@@ -574,6 +618,32 @@ async function backToMenu(page) {
 async function toggleLanguage(page) {
   await page.evaluate(() => document.querySelector('[data-action="toggle-lang"]')?.click());
   await wait(200);
+}
+
+/**
+ * Get from the menu to the mode cards.
+ *
+ * New Game and Continue both land on the mode select, and the test wants the
+ * second one: seeding progress is how the test unlocks a level, so wiping it on
+ * the way in would lock the very level it is about to play. New Game is only
+ * used when there is nothing stored yet, where it asks nothing because there is
+ * nothing to erase.
+ */
+async function openModeSelect(page) {
+  const startedFromProgress = await page.evaluate(() => {
+    const continueBtn = document.querySelector('[data-action="continue"]');
+    if (continueBtn && !continueBtn.disabled) {
+      continueBtn.click();
+      return 'continue';
+    }
+    document.querySelector('[data-action="new-game"]')?.click();
+    return 'new-game';
+  });
+  await wait(150);
+  must(
+    await page.$('[data-screen-name="modes"]:not([hidden])') !== null,
+    `${startedFromProgress} opens the mode select`,
+  );
 }
 
 /**
@@ -611,6 +681,7 @@ async function openLevel(page, mode, level) {
   await page.evaluate(PAGE_HELPERS);
 
   await backToMenu(page);
+  await openModeSelect(page);
   await page.click(`[data-mode="${mode}"]`);
   await wait(150);
   must(await page.$('[data-screen-name="levels"]:not([hidden])') !== null, `${mode}: the level select opens`);
@@ -1404,7 +1475,203 @@ async function main() {
     const modeOps = await page.$$eval('[data-mode-ops]', (ns) => ns.map((n) => n.textContent.trim()));
     must(modeOps.every((o) => o.length > 0), `mode previews list their operators: ${modeOps.join(' / ')}`);
 
+    console.log('\n--- Menu buttons');
+    // On a fresh profile, Continue is disabled. New Game does not ask because
+    // there is nothing to wipe.
+    const continueDisabled = await page.$eval('.menu__continue', (n) => n.disabled);
+    must(continueDisabled === true, 'Continue is disabled on a fresh profile');
+    await page.click('[data-action="new-game"]');
+    await wait(150);
+    must(await page.$('[data-screen-name="modes"]:not([hidden])') !== null, 'New Game on fresh opens mode select');
+    must(
+      await page.$('[data-overlay="confirm"]:not([hidden])') === null,
+      'no confirm when nothing to erase',
+    );
+    // Go back to menu to continue testing.
+    await page.evaluate(() => document.querySelector('[data-action="back-to-menu"]')?.click());
+    await wait(150);
+
+    // Seed progress and reload so the menu re-renders with Continue enabled.
+    await page.evaluate(() => {
+      localStorage.setItem('cn.progress', JSON.stringify({ easy: 3, hard: 2 }));
+    });
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.evaluate(PAGE_HELPERS);
+
+    const continueEnabled = await page.$eval('.menu__continue', (n) => !n.disabled);
+    must(continueEnabled === true, 'Continue is enabled after progress exists');
+    const newGameAsks = await page.$eval('.menu__newgame', (n) => !n.disabled);
+    must(newGameAsks === true, 'New Game stays enabled');
+    const continueLabel = await page.$eval('.menu__continue [data-i18n]', (n) => n.textContent);
+    must(/Lanjutkan|Continue/.test(continueLabel), `Continue label is correct: ${continueLabel}`);
+
+    // Continue keeps progress. New Game asks to wipe it.
+    await page.click('[data-action="continue"]');
+    await wait(150);
+    must(await page.$('[data-screen-name="modes"]:not([hidden])') !== null, 'Continue opens mode select');
+    // The level cards only exist once a mode is chosen, so the unlocked count is
+    // read on the level select, not on the mode screen.
+    await page.click('[data-mode="easy"]');
+    await wait(150);
+    const unlockedCount = await page.$$eval('.level-card:not(.is-locked)', (ns) => ns.length);
+    must(unlockedCount === 3, `Continue shows the levels already finished (${unlockedCount} of 5 open)`);
+
+    // Back to menu, then New Game → confirm dialog appears
+    await backToMenu(page);
+    await page.click('[data-action="new-game"]');
+    await wait(150);
+    must(
+      await page.$('[data-overlay="confirm"]:not([hidden])') !== null,
+      'New Game with progress shows the reset confirm',
+    );
+    const confirmTitle = await page.$eval('#confirm-title', (n) => n.textContent);
+    must(/Mulai ulang|Start over/.test(confirmTitle), `confirm title: ${confirmTitle}`);
+    // The safe answer must be the one that keeps the work, and it must have the
+    // focus: erasing every finished level is the one irreversible thing the
+    // player can press.
+    const safeFocused = await page.evaluate(
+      () => document.activeElement?.dataset?.confirm === 'stay',
+    );
+    must(safeFocused === true, 'the safe answer ("Keep my progress") has the keyboard focus');
+    // Dismiss the wipe by choosing "Keep my progress"
+    await page.click('[data-action="confirm-stay"]');
+    await wait(150);
+    must(
+      await page.$('[data-screen-name="menu"]:not([hidden])') !== null,
+      'dismissing the confirm returns to the menu',
+    );
+    const progressIntact = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('cn.progress') ?? '{}').easy,
+    );
+    must(progressIntact === 3, `dismissing the wipe left progress alone (easy=${progressIntact})`);
+
+    // Finally, accept the wipe and verify it clears everything
+    await page.click('[data-action="new-game"]');
+    await wait(150);
+    await page.click('[data-action="confirm-leave"]');
+    await wait(150);
+    must(
+      await page.$('[data-screen-name="modes"]:not([hidden])') !== null,
+      'accepting the wipe goes to mode select',
+    );
+    await page.click('[data-mode="easy"]');
+    await wait(150);
+    const wipedCount = await page.$$eval('.level-card:not(.is-locked)', (ns) => ns.length);
+    must(wipedCount === 1, `after the wipe only level 1 is unlocked (${wipedCount})`);
+
+    // A finished level leaves a best result on its card, and New Game takes it
+    // away with everything else. Seeded here rather than played, because the
+    // point is the rendering, which the level runs above have already covered.
+    // Level 3 is deliberately seeded as the *old* bare-number shape, so the
+    // upgrade path is exercised by the same run that draws the cards.
+    await page.evaluate(() => {
+      localStorage.setItem('cn.scores', JSON.stringify({
+        'easy:1': { score: 180, served: 6, total: 7 },
+        'easy:2': { score: 95, served: 7, total: 7 },
+        'easy:3': 150,
+      }));
+      localStorage.setItem('cn.progress', JSON.stringify({ easy: 4 }));
+    });
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.evaluate(PAGE_HELPERS);
+    await openModeSelect(page);
+    await page.click('[data-mode="easy"]');
+    await wait(200);
+
+    const cards = await page.$$eval('.level-card', (ns) => ns.map((n) => ({
+      level: n.dataset.level,
+      served: n.querySelector('.level-card__served')?.textContent.trim() ?? null,
+      score: n.querySelector('.level-card__score')?.textContent.trim() ?? null,
+    })));
+    const byLevel = Object.fromEntries(cards.map((c) => [c.level, c]));
+
+    must(
+      byLevel['1'].served !== null && /6\s*\/\s*7/.test(byLevel['1'].served),
+      `level 1 shows its served ratio ("${byLevel['1'].served}")`,
+    );
+    must(
+      byLevel['1'].score !== null && byLevel['1'].score.includes('180'),
+      `level 1 shows its best score ("${byLevel['1'].score}")`,
+    );
+    must(
+      byLevel['2'].served !== null && /7\s*\/\s*7/.test(byLevel['2'].served),
+      `level 2 shows its own ratio ("${byLevel['2'].served}")`,
+    );
+    must(
+      byLevel['2'].score !== null && byLevel['2'].score.includes('95'),
+      `level 2 shows its own score ("${byLevel['2'].score}")`,
+    );
+    // A record written before the ratio existed must still show its score, and
+    // must not invent a `0/0` line the player never earned.
+    must(
+      byLevel['3'].score !== null && byLevel['3'].score.includes('150'),
+      `an old bare-number record still shows its score ("${byLevel['3'].score}")`,
+    );
+    must(
+      byLevel['3'].served === null,
+      `an old record shows no ratio rather than a fake 0/0 (${byLevel['3'].served})`,
+    );
+    // A level that has never been finished shows neither line.
+    must(
+      byLevel['4'].served === null && byLevel['4'].score === null,
+      'an unplayed level shows neither line',
+    );
+    must(
+      byLevel['5'].score === null,
+      'a locked level shows no result',
+    );
+
+    // New Game has to take the score book with it, or a locked level would keep
+    // advertising an achievement the player can no longer reach.
+    await backToMenu(page);
+    await page.click('[data-action="new-game"]');
+    await wait(200);
+    await page.click('[data-action="confirm-leave"]');
+    await wait(250);
+    const scoresAfterWipe = await page.evaluate(() => localStorage.getItem('cn.scores'));
+    must(
+      scoresAfterWipe === null || scoresAfterWipe === '{}',
+      `New Game clears the score book too (${scoresAfterWipe})`,
+    );
+
     console.log('\n--- Level select');
+    await openModeSelect(page);
+
+    // The mode cards and the footer back button used to disagree on width: the
+    // cards were capped at `--menu-width` while the footer button stretched to
+    // the full viewport, so on a desktop-width screen the footer "Back" sat
+    // several times wider than the cards above it. Measuring has to happen at a
+    // wide viewport, because at a phone width `min(100%, var(--menu-width))`
+    // collapses to 100% for both and the bug is invisible.
+    await page.setViewport({ width: 1280, height: 900, isMobile: true, hasTouch: true });
+    await wait(150);
+    const modeAlign = await page.evaluate(() => {
+      const card = document.querySelector('.menu__modes').getBoundingClientRect();
+      const btn = document.querySelector('.screen--modes .screen__footer .btn').getBoundingClientRect();
+      return {
+        cardW: Math.round(card.width),
+        btnW: Math.round(btn.width),
+        cardLeft: Math.round(card.left),
+        btnLeft: Math.round(btn.left),
+        vw: document.documentElement.clientWidth,
+      };
+    });
+    await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+    await wait(150);
+    must(
+      Math.abs(modeAlign.cardW - modeAlign.btnW) <= 1,
+      `mode cards and footer back button share a width at 1280px (${modeAlign.cardW} vs ${modeAlign.btnW}px)`,
+    );
+    must(
+      Math.abs(modeAlign.cardLeft - modeAlign.btnLeft) <= 1,
+      `mode cards and footer back button are left-aligned (${modeAlign.cardLeft} vs ${modeAlign.btnLeft}px)`,
+    );
+    must(
+      modeAlign.cardW < modeAlign.vw,
+      `mode cards are capped on a wide screen, not stretched (${modeAlign.cardW}px of ${modeAlign.vw}px)`,
+    );
+    note(`   at 1280px: mode cards ${modeAlign.cardW}px, footer back ${modeAlign.btnW}px`);
+
     await page.click('[data-mode="easy"]');
     await wait(150);
     must(await page.$('[data-screen-name="levels"]:not([hidden])') !== null, 'level select opens');
@@ -1412,6 +1679,42 @@ async function main() {
     must(/4 customers/.test(levelMeta[0]), `level 1 owes customers: "${levelMeta[0]}"`);
     const lockedBefore = await page.$$eval('.level-card.is-locked', (ns) => ns.length);
     must(lockedBefore === 4, `only level 1 is unlocked at first (${lockedBefore} locked)`);
+
+    // The cards have to fill the space the grid gives them, not sit at their
+    // content height in the middle of each track. A one-liner of text in a
+    // three-row grid is exactly the case that regressed before, so the gap
+    // between the bottom of the last row and the bottom of the grid is the thing
+    // to measure — not the sum of card heights, which double-counts a row that
+    // holds two cards side by side.
+    const cardFill = await page.evaluate(() => {
+      const grid = document.querySelector('.levels__grid');
+      const items = [...grid.querySelectorAll('li')];
+      const gridRect = grid.getBoundingClientRect();
+      // The last row's cards are the ones nearest the bottom edge.
+      const lowest = Math.max(...items.map((n) => n.getBoundingClientRect().bottom));
+      const footer = document.querySelector('[data-screen-name="levels"] .screen__footer');
+      return {
+        gridH: Math.round(gridRect.height),
+        cardH: Math.round(Math.max(...items.map((n) => n.getBoundingClientRect().height))),
+        // Whatever the grid has below its lowest card is the dead space.
+        slack: Math.round(gridRect.bottom - lowest),
+        gridBottom: Math.round(gridRect.bottom),
+        footerTop: Math.round(footer.getBoundingClientRect().top),
+      };
+    });
+    must(
+      cardFill.slack <= 2,
+      `the cards fill every row, with no dead space under them (${cardFill.slack}px slack of ${cardFill.gridH}px)`,
+    );
+    must(
+      cardFill.cardH >= 60,
+      `a card is tall enough to be worth tapping (${cardFill.cardH}px)`,
+    );
+    must(
+      cardFill.gridBottom <= cardFill.footerTop,
+      `the grid ends where the back button starts (grid ${cardFill.gridBottom}, button ${cardFill.footerTop})`,
+    );
+    note(`   level cards are ${cardFill.cardH}px tall in a ${cardFill.gridH}px grid`);
 
     for (const combo of combos) {
       // A fresh tab per level rather than a reload. The renderer on this machine
@@ -1483,8 +1786,92 @@ async function main() {
     await toggleLanguage(page);
     note('   the language toggle only exists on the menu, not inside a level');
 
+    // Leaving a level is the one destructive thing in the game menu, so it has to
+    // ask, and the safe answer has to be the one that is pre-selected. Rule 11.
+    // This runs inside a real level because that is the only place the question
+    // can actually be reached.
+    console.log('\n--- Leaving a level asks first');
+    await openLevel(page, 'easy', 1);
+    await waitForChip(page);
+    // Put something on the stand so "your dish is lost" is not an empty claim.
+    await page.evaluate(() => document.querySelector('.chip')?.click());
+    await wait(200);
+    const rackForLeave = await page.evaluate(READ_RACK);
+    await clickTile(page, 'number', rackForLeave.values[0]);
+    await wait(150);
+
+    // The clock has to be stopped, and whoever is still waiting must be no closer
+    // to walking out than before the question was opened.
+    await wait(250);
+    const patienceBefore = await page.evaluate(() => Math.max(
+      ...[...document.querySelectorAll('.chip__seconds')].map((n) => Number(n.textContent)),
+    ));
+    await page.click('[data-action="toggle-game-menu"]');
+    await wait(150);
+    await page.click('[data-action="leave-level"]');
+    await wait(200);
+    const leaveDialog = await page.evaluate(() => ({
+      open: !document.querySelector('[data-overlay="confirm"]')?.hidden,
+      title: document.querySelector('#confirm-title')?.textContent ?? '',
+      body: document.querySelector('[data-confirm-body]')?.textContent ?? '',
+      focused: document.activeElement?.dataset?.confirm === 'stay',
+      stayLabel: document.querySelector('[data-action="confirm-stay"]')?.textContent?.trim() ?? '',
+    }));
+    must(leaveDialog.open === true, 'leaving a level asks first');
+    must(
+      /leave this level|keluar dari level/i.test(leaveDialog.title),
+      `the leave question says what it is about ("${leaveDialog.title}")`,
+    );
+    must(
+      /keep playing|lanjut bermain/i.test(leaveDialog.stayLabel),
+      `the safe answer names staying ("${leaveDialog.stayLabel}")`,
+    );
+    must(
+      leaveDialog.focused === true,
+      'the safe answer ("Keep playing") has the keyboard focus',
+    );
+    await wait(2500);
+    const patienceAfter = await page.evaluate(() => Math.max(
+      ...[...document.querySelectorAll('.chip__seconds')].map((n) => Number(n.textContent)),
+    ));
+    must(
+      patienceAfter >= patienceBefore - 1,
+      `nobody's patience drains while the leave question is open (${patienceBefore}s before, ${patienceAfter}s after)`,
+    );
+
+    // The safe answer puts the player back in the same level with the dish intact.
+    await page.click('[data-action="confirm-stay"]');
+    await wait(250);
+    must(
+      await page.$('[data-screen-name="game"]:not([hidden])') !== null,
+      'answering "Keep playing" stays in the level',
+    );
+    const standSurvived = await page.evaluate(
+      () => document.querySelectorAll('.workspace__line .slot:not(.slot--dropzone)').length,
+    );
+    must(standSurvived >= 1, `the dish survives the question (${standSurvived} tiles)`);
+
+    // The other answer leaves, and lands on the level select rather than the menu.
+    await page.click('[data-action="toggle-game-menu"]');
+    await wait(150);
+    await page.click('[data-action="leave-level"]');
+    await wait(200);
+    await page.click('[data-action="confirm-leave"]');
+    await wait(300);
+    must(
+      await page.$('[data-screen-name="levels"]:not([hidden])') !== null,
+      'answering "Leave anyway" goes to the level select, not the menu',
+    );
+    must(
+      await page.$('[data-screen-name="menu"]:not([hidden])') === null,
+      'leaving a level does not jump past the level select',
+    );
+    await backToMenu(page);
+
+
     console.log('\n--- Level 2 unlocks (regression)');
     await backToMenu(page);
+    await openModeSelect(page);
     await page.click('[data-mode="easy"]');
     await wait(200);
     // Read the lock count against the stored high-water mark rather than a fixed
@@ -1569,6 +1956,13 @@ async function main() {
     }
 
     console.log('\n--- Sound is optional, and the way to turn it off is there');
+
+    // The mute button lives inside the game menu panel, so the panel has to be
+    // open before anything about it can be measured. `getClientRects` is empty
+    // on a hidden element, which is the same rule the tap-target probe uses.
+    await page.click('[data-action="toggle-game-menu"]');
+    await wait(150);
+
     const sound = await page.evaluate(() => {
       const music = document.querySelector('[data-audio-music]');
       const mute = document.querySelector('[data-action="toggle-mute"]');
@@ -1580,14 +1974,14 @@ async function main() {
         hasMute: Boolean(mute),
         muteLabel: mute?.getAttribute('aria-label') ?? '',
         mutePressed: mute?.getAttribute('aria-pressed') ?? null,
+        muteVisible: Boolean(mute?.getClientRects().length),
         musicLoop: music?.hasAttribute('loop') ?? false,
         preload: music?.getAttribute('preload') ?? '',
       };
     });
-    must(sound.hasMute, 'the mute button is on screen during a level');
+    must(sound.hasMute, 'the mute button is in the game menu');
+    must(sound.muteVisible, 'the game menu is open so the mute button is visible');
     must(
-      // The smoke run leaves the UI in Indonesian after the language toggle test,
-      // so match both languages rather than assuming English.
       /mute|unmute|suara/i.test(sound.muteLabel),
       `the mute button announces what it will do (aria-label "${sound.muteLabel}")`,
     );
@@ -1595,6 +1989,54 @@ async function main() {
       sound.mutePressed === 'true' || sound.mutePressed === 'false',
       `the mute button reports its state (aria-pressed "${sound.mutePressed}")`,
     );
+
+    // The game menu is the single hamburger in the HUD. It must be a real button
+    // and the panel must start closed.
+    const gameMenu = await page.evaluate(() => {
+      const btn = document.querySelector('[data-action="toggle-game-menu"]');
+      const panel = document.querySelector('[data-game-menu]');
+      return {
+        hasBtn: Boolean(btn),
+        expanded: btn?.getAttribute('aria-expanded') ?? null,
+        panelHidden: panel?.hidden ?? null,
+        leaveItem: Boolean(document.querySelector('[data-action="leave-level"]')),
+        label: document.querySelector('[data-audio-mute-label]')?.textContent?.trim() ?? '',
+      };
+    });
+    must(gameMenu.hasBtn, 'the game menu hamburger is in the HUD');
+    must(gameMenu.leaveItem, 'the game menu has a Leave item');
+    must(
+      /music|musik|on|off|nyala|mati/i.test(gameMenu.label),
+      `the game menu music label is readable ("${gameMenu.label}")`,
+    );
+
+    // The panel is still open from the label check. Close it to get to a known
+    // state before testing the open/close toggle from scratch.
+    await page.click('[data-action="toggle-game-menu"]');
+    await wait(150);
+    const closedBefore = await page.evaluate(() =>
+      document.querySelector('[data-game-menu]')?.hidden === true);
+    must(closedBefore === true, 'the game menu starts closed');
+
+    // Opening the panel, then closing it again, must toggle correctly.
+    await page.click('[data-action="toggle-game-menu"]');
+    await wait(150);
+    const panelOpen = await page.evaluate(() =>
+      document.querySelector('[data-game-menu]')?.hidden === false);
+    must(panelOpen === true, 'tapping the hamburger opens the game menu');
+    await page.click('[data-action="toggle-game-menu"]');
+    await wait(150);
+    const panelClosed = await page.evaluate(() =>
+      document.querySelector('[data-game-menu]')?.hidden === true);
+    must(panelClosed === true, 'tapping the hamburger again closes the game menu');
+
+    // Reopen the panel so the 1280px and 320px tap-target probes below can
+    // measure the panel buttons. The probe filters on `getClientRects().length`,
+    // which is zero for a hidden element, so a closed panel would silently skip
+    // two touch targets and the gate would pass without ever checking them.
+    await page.click('[data-action="toggle-game-menu"]');
+    await wait(150);
+
     if (sound.hasMusicTag) {
       must(sound.musicLoop, 'the level music is set to loop');
       // `none` is the point of the preload attribute: a 1MB track should not be

@@ -25,6 +25,8 @@ const STRINGS = {
 
     'levels.customers': '{count} customers',
     'levels.lockedHint': 'Locked',
+    'levels.served': '{served}/{total} served',
+    'levels.best': 'Best: {score}',
 
     'hud.level': 'Level',
     'hud.score': 'Score',
@@ -81,15 +83,39 @@ const STRINGS = {
     'confirm.stay': 'Keep cooking',
     'confirm.leave': 'Switch anyway',
 
+    // Asked before New Game throws away finished levels. Same dialog as the
+    // switch question, different words, because the thing being destroyed is the
+    // player's progress rather than a half-built dish.
+    'confirm.resetTitle': 'Start over?',
+    'confirm.resetBody': 'This clears every level you have finished in all three modes. It cannot be undone.',
+    'confirm.keep': 'Keep my progress',
+    'confirm.lose': 'Erase it',
+
+    // Asked before the in-level menu abandons a level in progress. Rule 11: the
+    // customers still standing there are not punished, but the dish on the stand
+    // is thrown away, and that work is not coming back.
+    'confirm.leaveTitle': 'Leave this level?',
+    'confirm.leaveBody': 'The dish on the stand is thrown away, and the customers still waiting go home.',
+    'confirm.keepPlaying': 'Keep playing',
+    'confirm.leaveAnyway': 'Leave anyway',
+
     'action.serve': 'Serve',
     'action.undo': 'Undo',
     'action.clear': 'Clear',
-    'action.start': 'Play',
+    'action.newGame': 'New Game',
+    'action.continue': 'Continue',
+    'action.continueLocked': 'Continue, once you finish a level',
     'action.howToPlay': 'How to play',
     'action.toggleLang': 'Change language',
     'action.toggleMute': 'Mute sound',
     'action.unmute': 'Unmute sound',
     'action.backToMenu': 'Back to menu',
+
+    // The game menu, opened from the hamburger mid-level.
+    'gameMenu.open': 'Game menu',
+    'gameMenu.musicOn': 'Music: On',
+    'gameMenu.musicOff': 'Music: Off',
+    'gameMenu.leave': 'Leave',
 
     'rules.title': 'How to play',
     'rules.goal': 'A customer orders a number. Cook it and serve it before they lose patience.',
@@ -112,6 +138,7 @@ const STRINGS = {
 
     'overlay.levelDone': 'Level complete!',
     'overlay.nextLevel': 'Next level',
+    'overlay.chooseLevel': 'Choose level',
     'overlay.menu': 'Menu',
     'overlay.retry': 'Try again',
     'overlay.summary': 'You served {served} of {total} customers.',
@@ -143,6 +170,8 @@ const STRINGS = {
 
     'levels.customers': '{count} pelanggan',
     'levels.lockedHint': 'Terkunci',
+    'levels.served': '{served}/{total} terlayani',
+    'levels.best': 'Tertinggi: {score}',
 
     'hud.level': 'Level',
     'hud.score': 'Skor',
@@ -197,15 +226,34 @@ const STRINGS = {
   'confirm.stay': 'Lanjut masak',
   'confirm.leave': 'Ganti saja',
 
+  // Asked before New Game throws away finished levels.
+  'confirm.resetTitle': 'Mulai ulang?',
+  'confirm.resetBody': 'Ini menghapus semua level yang sudah kamu selesaikan di ketiga mode. Tidak bisa diurungkan.',
+  'confirm.keep': 'Pertahankan progress',
+  'confirm.lose': 'Hapus',
+
+  // Ditanya sebelum menu dalam level meninggalkan level yang sedang dimainkan.
+  'confirm.leaveTitle': 'Keluar dari level ini?',
+  'confirm.leaveBody': 'Hidangan di stand dibuang, dan pelanggan yang masih menunggu pulang.',
+  'confirm.keepPlaying': 'Lanjut bermain',
+  'confirm.leaveAnyway': 'Keluar saja',
+
     'action.serve': 'Sajikan',
     'action.undo': 'Urungkan',
     'action.clear': 'Bersihkan',
-    'action.start': 'Mulai',
+    'action.newGame': 'Permainan Baru',
+    'action.continue': 'Lanjutkan',
+    'action.continueLocked': 'Lanjutkan, setelah selesai satu level',
     'action.howToPlay': 'Aturan Main',
     'action.toggleLang': 'Ganti bahasa',
     'action.toggleMute': 'Matikan suara',
     'action.unmute': 'Nyalakan suara',
     'action.backToMenu': 'Kembali ke menu',
+
+    'gameMenu.open': 'Menu permainan',
+    'gameMenu.musicOn': 'Musik: Menyala',
+    'gameMenu.musicOff': 'Musik: Mati',
+    'gameMenu.leave': 'Keluar',
 
     'rules.title': 'Aturan Main',
     'rules.goal': 'Pelanggan memesan sebuah angka. Masak dan sajikan sebelum kesabarannya habis.',
@@ -228,6 +276,7 @@ const STRINGS = {
 
     'overlay.levelDone': 'Level selesai!',
     'overlay.nextLevel': 'Level berikutnya',
+    'overlay.chooseLevel': 'Pilih level',
     'overlay.menu': 'Menu',
     'overlay.retry': 'Coba lagi',
     'overlay.summary': 'Kamu melayani {served} dari {total} pelanggan.',

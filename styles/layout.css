@@ -56,7 +56,8 @@ body {
 }
 
 .menu__modes {
-  width: min(100%, 30rem);
+  width: min(100%, var(--menu-width));
+  align-self: center;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -70,12 +71,17 @@ body {
   margin-bottom: 2px;
 }
 
+/* No `margin-top: auto` here. It used to push the buttons to the bottom of the
+   screen, back when the mode cards filled the space above them. With the mode
+   cards moved to their own screen, the menu is just a header and this footer,
+   and the free space belongs between them and below, not above. The parent's
+   `justify-content: center` is what centres the whole column now. */
 .menu__footer {
-  margin-top: auto;
   padding-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: min(100%, var(--menu-width));
 }
 
 /* Start and How-to-play sit side by side. Equal flex means neither looks like
@@ -93,29 +99,84 @@ body {
   text-align: center;
 }
 
+/* ------------------------------------------------------------ Mode select */
+
+/* The mode cards and the heading live here, not on the menu. The footer with the
+   back button is pinned to the bottom; the cards and title sit above it with
+   comfortable breathing room. The screen inherits flex-column from .screen, so
+   `margin-top: auto` on the footer does the right thing. */
+.screen--modes .menu__heading {
+  text-align: center;
+}
+
+/* The back button in the mode select must line up with the mode cards above it,
+   not span the full viewport. Both share the `--menu-width` cap, so on a wide
+   screen the footer "Back" is exactly as wide as the cards instead of a bar
+   five times their width. The level select keeps `width: 100%` because its grid
+   legitimately fills the screen. */
+.screen--modes .screen__footer {
+  width: min(100%, var(--menu-width));
+  align-self: center;
+}
+
 /* -------------------------------------------------------- Level select */
 
-.levels__header {
+/* The back button is pinned to the bottom of the screen and spans it, on every
+   screen that offers a way out. It was a small button in a header, which on a
+   tall level grid put "back" next to the screen title and buried it under a
+   column of cards. `margin-top: auto` is correct here, unlike on the menu: the
+   content above is top-aligned and varies in height, so the button should sit on
+   the bottom edge where a thumb expects to find it. */
+.screen__footer {
+  margin-top: auto;
+  padding-top: 12px;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+}
+
+.screen__footer .btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .levels__title {
   font-size: 1.25rem;
   font-weight: 800;
+  text-align: center;
 }
 
+/* Three rows for five levels, the last one holding a single card. The grid takes
+   the height the screen has left after the title and the back button, so the
+   cards grow to fit instead of leaving dead space under them.
+
+   `flex: 1 1 0` is deliberate. An `auto` basis makes the grid size itself to its
+   content, which for five cards of a line of text each is a short block; the `1fr`
+   tracks then have nothing left to distribute and the rows collapse to that same
+   content height, leaving gaps between the tracks. A zero basis makes the grid
+   grow into the space that is actually there, and `1fr` splits it evenly.
+
+   The `<li>` is the grid item and stretches to its row, but the button inside it
+   sits at its content height unless the list item is itself a flex container.
+   Without that, every card is a short block floating in the middle of its own
+   track — the "small cards with gaps" that the `1fr` rows were meant to rule
+   out. */
 .levels__grid {
+  flex: 1 1 0;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
   gap: 10px;
-  margin-top: 12px;
-  width: min(100%, 30rem);
+  min-height: 0;
+}
+
+.levels__grid > li {
+  display: flex;
+  min-height: 0;
 }
 
 .level-card {
-  min-height: 84px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -128,6 +189,16 @@ body {
   font-weight: 800;
 }
 
+/* `is-locked` has been applied by the view since the level select was built and
+   had no rule behind it, so a locked level was drawn exactly like an open one
+   apart from the padlock glyph. Greying the fill is what makes a glance enough. */
+.level-card.is-locked {
+  background: var(--plate-shade);
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+  box-shadow: none;
+}
+
 .level-card__num {
   font-size: 1.5rem;
 }
@@ -138,8 +209,33 @@ body {
   color: var(--ink-soft);
 }
 
+/* Best result so far on this exact level: the customers served, then the score.
+   Both are deliberately the smallest text in the card. They are facts to look up
+   before replaying, not the thing being chosen, and the level number above them
+   is what the finger is actually aiming at. */
+.level-card__served,
+.level-card__score {
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+/* The ratio is the honest measure of the level, so it reads in green while the
+   score stays neutral. A cleared room is a different kind of achievement from a
+   high number, and the colour is what tells them apart at a glance. */
+.level-card__served {
+  color: var(--leaf-dark);
+}
+
+.level-card__score {
+  color: var(--ink-soft);
+}
+
 /* ----------------------------------------------------------------- HUD */
 
+/* The HUD has a hamburger button that opens a small dropdown menu, followed by
+   three equal-width cells for level, served, score, and the progress bar at the
+   bottom. The menu is absolutely positioned below the hamburger and right-aligned. */
 .hud {
   display: grid;
   grid-template-columns: auto repeat(3, 1fr);
@@ -148,8 +244,7 @@ body {
   padding-bottom: 10px;
 }
 
-.hud__quit,
-.hud__mute {
+.hud__menu {
   width: var(--tap-min);
   min-height: var(--tap-min);
   display: flex;
@@ -160,6 +255,56 @@ body {
   border: var(--stroke) solid var(--ink);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-hard-sm);
+}
+
+/* Small panel with two items: music toggle and leave level. Appears below the
+   hamburger, right edge aligned with the hamburger's right edge. */
+.game-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hard);
+  z-index: 10;
+}
+
+.game-menu[hidden] {
+  display: none;
+}
+
+.game-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: left;
+  min-width: 160px;
+  min-height: var(--tap-min);
+}
+
+.game-menu__item:active:not(:disabled) {
+  background: var(--plate-shade);
+}
+
+.game-menu__icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.game-menu__label {
+  flex: 1;
 }
 
 /* The slash is drawn as a real character rather than a filter on the whole
@@ -575,6 +720,7 @@ body {
 
   .levels__grid {
     grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
   }
 
   .workspace {

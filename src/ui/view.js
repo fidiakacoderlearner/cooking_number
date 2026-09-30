@@ -5,11 +5,12 @@
  */
 
 import { toDisplayString } from '../core/rational.js';
-import { customersForLevel, MAX_ON_SCREEN } from '../core/difficulty.js';
+import { customersForLevel, LEVELS_PER_MODE, MAX_ON_SCREEN } from '../core/difficulty.js';
 import { t } from './i18n.js';
 import { ASSETS, OPERATORS, operatorsForMode, operatorsForLevel, customerFor } from './assets.js';
 import * as S from './state.js';
 import * as audio from './audio.js';
+import { bestResult } from './progress.js';
 
 const el = (sel) => document.querySelector(sel);
 
@@ -49,8 +50,14 @@ export function cacheDom() {
   dom.overlayScore = el('[data-overlay-score]');
   dom.overlayConfirm = el('[data-overlay="confirm"]');
   dom.overlayConfirmBody = el('[data-confirm-body]');
+  dom.overlayConfirmTitle = el('#confirm-title');
+  dom.overlayConfirmStay = el('[data-action="confirm-stay"] [data-i18n]');
+  dom.overlayConfirmLeave = el('[data-action="confirm-leave"] [data-i18n]');
   dom.overlayRules = el('[data-overlay="rules"]');
   dom.muteIcon = el('[data-audio-mute-icon]');
+  dom.muteLabel = el('[data-audio-mute-label]');
+  dom.gameMenu = el('[data-game-menu]');
+  dom.hudMenuButton = el('[data-action="toggle-game-menu"]');
 }
 
 export function showScreen(name) {
@@ -86,19 +93,140 @@ export function showOverlay(name) {
  * Ask before a customer is swapped out from under a half-built dish.
  *
  * Only reachable past `FREE_SWITCH_TILES`, where there is real work to lose.
+ *
+ * Title and both button labels are written here even though the markup carries
+ * the same strings as its static defaults. The reset question borrows this
+ * dialog, so whichever question opened last decides what the words say, and
+ * writing all of them every time is what keeps a stale "Erase it" from surviving
+ * on top of a later switch question.
  */
 export function showSwitchConfirm({ tiles, target }) {
+  if (dom.overlayConfirmTitle) {
+    dom.overlayConfirmTitle.textContent = t('confirm.switchTitle');
+  }
   if (dom.overlayConfirmBody) {
     dom.overlayConfirmBody.textContent = t('confirm.switchBody', { tiles, target });
+  }
+  if (dom.overlayConfirmStay) {
+    dom.overlayConfirmStay.textContent = t('confirm.stay');
+  }
+  if (dom.overlayConfirmLeave) {
+    dom.overlayConfirmLeave.textContent = t('confirm.leave');
   }
   showOverlay('confirm');
 }
 
 /**
+ * Ask before New Game erases every finished level.
+ *
+ * Rule 11: throwing away progress is exactly the kind of irreversible, hard to
+ * undo action that has to be a deliberate press of a button the player read
+ * first, never a side effect of tapping the wrong thing.
+ */
+export function showResetConfirm() {
+  if (dom.overlayConfirmTitle) {
+    dom.overlayConfirmTitle.textContent = t('confirm.resetTitle');
+  }
+  if (dom.overlayConfirmBody) {
+    dom.overlayConfirmBody.textContent = t('confirm.resetBody');
+  }
+  if (dom.overlayConfirmStay) {
+    dom.overlayConfirmStay.textContent = t('confirm.keep');
+  }
+  if (dom.overlayConfirmLeave) {
+    dom.overlayConfirmLeave.textContent = t('confirm.lose');
+  }
+  showOverlay('confirm');
+}
+
+/**
+ * Ask before the in-level menu abandons a level in progress.
+ *
+ * The customers are not punished for the player leaving; they simply go home
+ * when the level ends. But the dish on the stand is work that is not coming back,
+ * so rule 11 applies to it the same way it applies to erasing progress.
+ */
+export function showLeaveConfirm() {
+  if (dom.overlayConfirmTitle) {
+    dom.overlayConfirmTitle.textContent = t('confirm.leaveTitle');
+  }
+  if (dom.overlayConfirmBody) {
+    dom.overlayConfirmBody.textContent = t('confirm.leaveBody');
+  }
+  if (dom.overlayConfirmStay) {
+    dom.overlayConfirmStay.textContent = t('confirm.keepPlaying');
+  }
+  if (dom.overlayConfirmLeave) {
+    dom.overlayConfirmLeave.textContent = t('confirm.leaveAnyway');
+  }
+  showOverlay('confirm');
+}
+
+/* ------------------------------------------------------------------ *
+ * Game menu (the dropdown that appears on the in-game hamburger)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Toggle the game menu. The panel is a small dropdown under the hamburger. Focus
+ * goes into the panel when it opens, and back to the hamburger when it closes.
+ *
+ * `aria-expanded` on the button mirrors the panel, so a screen reader announces
+ * that a panel is now showing rather than leaving the state implicit.
+ */
+export function toggleGameMenu() {
+  if (!dom.gameMenu) return;
+  const open = dom.gameMenu.hidden;
+  dom.gameMenu.hidden = !open;
+  dom.hudMenuButton?.setAttribute('aria-expanded', String(open));
+  if (open) dom.gameMenu.querySelector('button')?.focus();
+}
+
+/**
+ * Put the panel away.
+ *
+ * `restoreFocus` is false when the panel is being closed by something that moves
+ * the player somewhere else anyway, like leaving the level or starting the next
+ * one. Stealing focus back to a hamburger on a screen that is no longer being
+ * shown would drop a keyboard player at the top of the document.
+ */
+export function closeGameMenu({ restoreFocus = true } = {}) {
+  if (!dom.gameMenu || dom.gameMenu.hidden) return;
+  dom.gameMenu.hidden = true;
+  dom.hudMenuButton?.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) dom.hudMenuButton?.focus();
+}
+
+/** Is the in-level panel open? The click handler needs this to spot a stray tap. */
+export function isGameMenuOpen() {
+  return Boolean(dom.gameMenu && !dom.gameMenu.hidden);
+}
+
+/**
+ * Grey out Continue when there is nothing to continue.
+ *
+ * The button stays on screen rather than disappearing, because a menu whose
+ * buttons appear and vanish as progress accumulates is a menu the player has to
+ * re-read every visit. `aria-disabled` is set alongside `disabled` so a screen
+ * reader says why the button is dead, and the label explains it in words.
+ */
+export function setContinueEnabled(hasProgress) {
+  const button = document.querySelector('.menu__continue');
+  if (!button) return;
+  button.disabled = !hasProgress;
+  button.setAttribute('aria-disabled', String(!hasProgress));
+  button.setAttribute(
+    'aria-label',
+    hasProgress ? t('action.continue') : t('action.continueLocked'),
+  );
+}
+
+/**
  * Return focus to the menu button that opened the rules dialog.
  *
- * The "How to play" button lives in `menu__footer`. There are at most two
- * buttons, so it is always the second one — the first is "Play".
+ * The "How to play" button is a direct child of `menu__footer` with its own
+ * class, so it is found by that class rather than by counting positions. The
+ * footer used to hold two buttons and the second was always this one, which
+ * stopped being true once New Game and Continue were added above it.
  */
 export function focusRulesOpener() {
   const footer = document.querySelector('.menu__footer');
@@ -167,7 +295,7 @@ export function renderLevelGrid(mode, unlocked) {
   dom.modeTitle.textContent = t(`mode.${mode}`);
   dom.levelGrid.replaceChildren();
 
-  for (let level = 1; level <= 5; level += 1) {
+  for (let level = 1; level <= LEVELS_PER_MODE; level += 1) {
     const locked = level > unlocked;
     const item = document.createElement('li');
     const button = document.createElement('button');
@@ -188,6 +316,29 @@ export function renderLevelGrid(mode, unlocked) {
       : t('levels.customers', { count: customersForLevel(level) });
 
     button.append(num, meta);
+
+    // Only a level the player has actually finished carries a result. The next
+    // level up is unlocked but not yet played, so it shows nothing rather than
+    // a zero that would read as a bad result.
+    const best = bestResult(mode, level);
+    if (!locked && best) {
+      // The ratio comes first because it is the honest measure of the level:
+      // score can be high off three quick customers, while `6/7` says how
+      // close the player came to clearing the room. `served` is null for a
+      // result recorded before the ratio was stored, so the line is skipped
+      // rather than shown as `0/0`.
+      if (best.served !== null) {
+        const served = document.createElement('span');
+        served.className = 'level-card__served';
+        served.textContent = t('levels.served', { served: best.served, total: best.total });
+        button.append(served);
+      }
+      const score = document.createElement('span');
+      score.className = 'level-card__score';
+      score.textContent = t('levels.best', { score: best.score });
+      button.append(score);
+    }
+
     item.append(button);
     dom.levelGrid.append(item);
   }
@@ -229,11 +380,20 @@ export function renderHud(state) {
  * `aria-hidden` in the markup and the button carries the real name.
  */
 export function setMuteIcon(muted) {
-  const icon = el('[data-audio-mute-icon]');
+  const icon = dom.muteIcon;
   if (!icon) return;
   icon.innerHTML = muted
     ? '&#9834;<span class="hud__mute-slash" aria-hidden="true">/</span>'
     : '&#9834;';
+
+  // The visible label names the action, the way a toggle button is expected to
+  // read: "Music: Off" means sound is on and tapping turns it off. The state
+  // itself is on `aria-pressed`, so both halves are available without the label
+  // having to be ambiguous to be truthful.
+  if (dom.muteLabel) {
+    dom.muteLabel.textContent = muted ? t('gameMenu.musicOn') : t('gameMenu.musicOff');
+  }
+
   const button = icon.closest('button');
   if (button) {
     const key = muted ? 'action.unmute' : 'action.toggleMute';

@@ -40,6 +40,19 @@
   background: var(--plate-shade);
 }
 
+/* A dead button that still looks alive is worse than no button: the player taps
+   it, nothing happens, and they cannot tell whether the button or the game is
+   broken. Continue is disabled on a profile with no finished level, so it has to
+   read as spent at a glance. Greyed fill, greyed text, no shadow, and no press
+   animation to imply a response that is not coming. */
+.btn:disabled {
+  background: var(--plate-shade);
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+  box-shadow: none;
+  transform: none;
+}
+
 /* ---------------------------------------------------------- Mode cards */
 
 .mode-card {

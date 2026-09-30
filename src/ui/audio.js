@@ -24,6 +24,20 @@ import { t } from './i18n.js';
 const MUSIC = 'assets/placeholder/theme.mp3';
 const STORAGE_KEY = 'cn.muted';
 
+/**
+ * How loud the music loop plays.
+ *
+ * A phone speaker at full volume is startling when the music starts on the first
+ * tap, and this loop never stops while a level runs, so the level is one long
+ * exposure rather than a single sting. Three fifths down is quiet enough to sit
+ * under the game and still audible over street noise.
+ *
+ * The three effect sounds are already low (peaks of 0.06-0.09) and are short, so
+ * they are left alone: they are the feedback the player needs, and the complaint
+ * was about the loop, not the stings.
+ */
+const MUSIC_VOLUME = 0.35;
+
 let music = null;
 let context = null;
 let muted = readMuted();
@@ -170,6 +184,7 @@ export function isMuted() {
 export function init() {
   music = document.querySelector('[data-audio-music]');
   if (music) {
+    music.volume = MUSIC_VOLUME;
     music.muted = muted;
     music.addEventListener('error', () => {
       // A missing or unreadable file must not take the game down with it. The

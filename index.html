@@ -24,9 +24,33 @@
     <p class="menu__tagline" data-i18n="app.tagline">Cook the number. Serve the customer.</p>
   </header>
 
-  <div class="menu__modes" role="group" aria-labelledby="mode-heading">
-    <h2 class="menu__heading" id="mode-heading" data-i18n="menu.chooseMode">Choose a mode</h2>
+  <footer class="menu__footer">
+    <div class="menu__actions">
+      <button class="btn btn--primary menu__newgame" type="button" data-action="new-game">
+        <span data-i18n="action.newGame">New Game</span>
+      </button>
+      <button class="btn btn--ghost menu__continue" type="button" data-action="continue"
+              data-i18n-aria="action.continue" aria-label="Continue">
+        <span data-i18n="action.continue">Continue</span>
+      </button>
+    </div>
+    <button class="btn btn--ghost menu__howto" type="button" data-action="how-to-play">
+      <span data-i18n="action.howToPlay">How to play</span>
+    </button>
+    <button class="lang-toggle" type="button" data-action="toggle-lang" data-i18n-aria="action.toggleLang" aria-label="Change language">
+      <span data-i18n="menu.language">Language</span>: <strong data-lang-current>EN</strong>
+    </button>
+  </footer>
+</section>
 
+<!-- ============================= MODE SELECT ============================= -->
+<!-- Its own screen rather than a strip on the menu. Three mode cards plus the
+     title and the tagline crowded the menu, and the menu is the first thing a
+     player sees: it now holds only the two buttons and the language toggle. -->
+<section class="screen screen--modes" data-screen-name="modes" hidden>
+  <h2 class="menu__heading" id="mode-heading" data-i18n="menu.chooseMode">Choose a mode</h2>
+
+  <div class="menu__modes" role="group" aria-labelledby="mode-heading">
     <button class="mode-card" data-mode="easy" type="button">
       <span class="mode-card__name" data-i18n="mode.easy">Easy</span>
       <span class="mode-card__grade" data-i18n="mode.grade7">Grade 7</span>
@@ -49,43 +73,37 @@
     </button>
   </div>
 
-  <footer class="menu__footer">
-    <div class="menu__actions">
-      <button class="btn btn--primary menu__start" type="button" data-action="start">
-        <span data-i18n="action.start">Play</span>
-      </button>
-      <button class="btn btn--ghost menu__howto" type="button" data-action="how-to-play">
-        <span data-i18n="action.howToPlay">How to play</span>
-      </button>
-    </div>
-    <button class="lang-toggle" type="button" data-action="toggle-lang" data-i18n-aria="action.toggleLang" aria-label="Change language">
-      <span data-i18n="menu.language">Language</span>: <strong data-lang-current>EN</strong>
+  <div class="screen__footer">
+    <button class="btn btn--ghost" type="button" data-action="back-to-menu">
+      <span data-i18n="common.back">Back</span>
     </button>
-  </footer>
+  </div>
 </section>
 
 <!-- ============================= LEVEL SELECT ============================= -->
 <section class="screen screen--levels" data-screen-name="levels" hidden>
-  <header class="levels__header">
-    <button class="btn btn--ghost" type="button" data-action="back-to-menu">
-      <span aria-hidden="true">&larr;</span> <span data-i18n="common.back">Back</span>
-    </button>
-    <h2 class="levels__title" data-mode-title>Easy</h2>
-  </header>
+  <h2 class="levels__title" data-mode-title>Easy</h2>
 
   <ol class="levels__grid" data-level-grid></ol>
+
+  <div class="screen__footer">
+    <button class="btn btn--ghost" type="button" data-action="back-to-modes">
+      <span data-i18n="common.back">Back</span>
+    </button>
+  </div>
 </section>
 
 <!-- ============================= GAME ============================= -->
 <section class="screen screen--game" data-screen-name="game" hidden>
 
   <header class="hud">
-    <button class="hud__quit" type="button" data-action="back-to-menu"
-            data-i18n-aria="action.backToMenu" aria-label="Back to menu" title="Back to menu">&#9776;</button>
-    <button class="hud__mute" type="button" data-action="toggle-mute"
-            data-i18n-aria="action.toggleMute" aria-label="Mute sound" title="Mute sound">
-      <span data-audio-mute-icon aria-hidden="true">&#9834;</span>
-    </button>
+    <!-- One button opens a small menu holding the two things a player reaches for
+         mid-level: the sound toggle and the way out. Two separate buttons in the
+         HUD spent two of the four top-row slots on controls that are almost never
+         used, and squeezed the level, served and score readouts narrower. -->
+    <button class="hud__menu" type="button" data-action="toggle-game-menu"
+            data-i18n-aria="gameMenu.open" aria-label="Game menu"
+            aria-expanded="false" aria-controls="game-menu">&#9776;</button>
     <div class="hud__cell hud__cell--level">
       <span class="hud__label" data-i18n="hud.level">Level</span>
       <span class="hud__value" data-hud-level>1</span>
@@ -100,6 +118,19 @@
     </div>
     <div class="hud__progress" aria-hidden="true">
       <div class="hud__progress-fill" data-hud-progress></div>
+    </div>
+
+    <div class="game-menu" id="game-menu" data-game-menu hidden>
+      <button class="game-menu__item" type="button" data-action="toggle-mute"
+              data-i18n-aria="action.toggleMute" aria-pressed="false">
+        <span class="game-menu__icon" data-audio-mute-icon aria-hidden="true">&#9834;</span>
+        <span class="game-menu__label" data-audio-mute-label></span>
+      </button>
+      <button class="game-menu__item" type="button" data-action="leave-level"
+              data-i18n-aria="gameMenu.leave" aria-label="Leave this level">
+        <span class="game-menu__icon" aria-hidden="true">&#8629;</span>
+        <span class="game-menu__label" data-i18n="gameMenu.leave">Leave</span>
+      </button>
     </div>
   </header>
 
@@ -157,8 +188,10 @@
       <button class="btn btn--primary" type="button" data-action="next-level">
         <span data-i18n="overlay.nextLevel">Next level</span>
       </button>
-      <button class="btn btn--ghost" type="button" data-action="back-to-menu">
-        <span data-i18n="overlay.menu">Menu</span>
+      <!-- Goes to the level select, not the menu. A finished level is a moment to
+           pick what to play next, and the mode screen is one tap further back. -->
+      <button class="btn btn--ghost" type="button" data-action="levels-from-overlay">
+        <span data-i18n="overlay.chooseLevel">Choose level</span>
       </button>
     </div>
   </div>
@@ -167,8 +200,10 @@
 <div class="toast" data-toast hidden></div>
 
 <!-- ============================= CONFIRM ============================= -->
-<!-- Asked only when a customer is swapped out from under a half-built dish, so
-     that one tap cannot cost real work. The clock is stopped while it is open. -->
+<!-- Asked only when a customer is swapped out from under a half-built dish, or
+     when New Game is about to erase finished levels. The clock is stopped while
+     it is open. Both questions reuse this one dialog: same shape, same focus
+     rule, only the words change. -->
 <div class="overlay" data-overlay="confirm" hidden>
   <div class="overlay__card" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
     <h2 class="overlay__title" id="confirm-title" data-i18n="confirm.switchTitle">Leave this dish?</h2>

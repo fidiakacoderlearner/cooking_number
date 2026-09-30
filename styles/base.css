@@ -100,6 +100,10 @@ button:focus-visible,
      with a thumb, and they scroll horizontally when a level is busy. */
   --chip-min: 78px;
 
+  /* Menu/mode-card and footer button share this max width so they align on
+     wide screens without stretching to the full viewport. */
+  --menu-width: 30rem;
+
   --shadow-hard: 0 4px 0 0 var(--ink);
   --shadow-hard-sm: 0 3px 0 0 var(--ink);
 

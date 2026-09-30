@@ -1,12 +1,12 @@
 /**
  * Game controller: wires the core generator to the view, owns the clock, and
- * enforces the flow menu -> level select -> customers -> level done.
+ * enforces the flow menu -> mode select -> level select -> customers -> done.
  */
 
 import { LEVELS_PER_MODE } from '../core/difficulty.js';
 import { toDisplayString } from '../core/rational.js';
 import { t, toggleLanguage } from './i18n.js';
-import { completeLevel, unlockedFor } from './progress.js';
+import { clearProgress, completeLevel, hasProgress, recordScore, unlockedFor } from './progress.js';
 import * as S from './state.js';
 import * as view from './view.js';
 import * as drag from './drag.js';
@@ -16,8 +16,19 @@ let state = null;
 let activeMode = 'easy';
 let timerHandle = null;
 let lastTick = 0;
-/** The customer a pending switch dialog is asking about, if one is open. */
-let pendingOrderId = null;
+
+/**
+ * What the confirm dialog on screen is asking about, or null when it is closed.
+ *
+ * Three questions share one dialog and one pair of buttons: switch customer,
+ * erase progress, and abandon the level. Which one is live cannot be inferred
+ * from the dialog, so it is recorded here and cleared the moment the question is
+ * answered. That clearing is what stops a later, unrelated `confirm-leave` from
+ * erasing progress on the strength of a decision the player made about a dish.
+ *
+ * @type {{ kind: 'switch' | 'reset' | 'leave', orderId?: number } | null}
+ */
+let pendingConfirm = null;
 
 /* ------------------------------------------------------------------ *
  * Clock
@@ -124,10 +135,21 @@ function handleServeTo(orderId) {
 function showLevelDone() {
   stopTimer();
   audio.stopMusic();
+  // A panel left open when the last customer leaves would sit behind the
+  // level-complete overlay, and the next level would start with it still there.
+  view.closeGameMenu({ restoreFocus: false });
   const served = S.ordersServed(state);
   const isFinal = state.level >= LEVELS_PER_MODE;
   // Only a finished level may open the next one.
   completeLevel(state.mode, state.level);
+  // The best result for this exact level, kept even if the player replays it
+  // worse. Stored next to the progress write so the two can never disagree about
+  // which levels have been played.
+  recordScore(state.mode, state.level, {
+    score: state.levelScore,
+    served,
+    total: state.rosterSize,
+  });
   view.dom.overlaySummary.textContent = served === state.rosterSize
     ? t('overlay.allDone')
     : t('overlay.summary', { served, total: state.rosterSize });
@@ -139,7 +161,10 @@ function showLevelDone() {
 function startLevel(mode, level) {
   stopTimer();
   state = S.createState(mode, level);
-  pendingOrderId = null;
+  pendingConfirm = null;
+  // The in-level dropdown must not survive into the next level, or a player who
+  // leaves mid-game and starts another arrives with a panel hanging over the HUD.
+  view.closeGameMenu({ restoreFocus: false });
   // Order ids restart at 1 for a new level, so the arrival memory has to go too
   // or the first customer of the new level would not animate.
   view.resetChipArrivals();
@@ -155,9 +180,34 @@ function backToMenu() {
   stopTimer();
   audio.stopMusic();
   state = null;
-  pendingOrderId = null;
+  pendingConfirm = null;
+  view.closeGameMenu({ restoreFocus: false });
   view.showOverlay(null);
+  // Re-read on every arrival, not just at boot. Finishing a level is the only
+  // thing that writes progress, so a player who has just cleared Easy 1 must see
+  // Continue light up the moment they walk back out, or the button would lie
+  // about what the game knows.
+  view.setContinueEnabled(hasProgress());
   view.showScreen('menu');
+}
+
+/**
+ * Leave the level in progress and go to the level select for the mode it was.
+ *
+ * Not the menu: a player who walks out mid-level usually wants to pick a
+ * different level of the same mode, and the mode screen is one tap further back
+ * from there.
+ */
+function leaveToLevelSelect() {
+  const mode = state?.mode ?? activeMode;
+  stopTimer();
+  audio.stopMusic();
+  state = null;
+  pendingConfirm = null;
+  view.closeGameMenu({ restoreFocus: false });
+  view.showOverlay(null);
+  view.feedback(null);
+  openLevelSelect(mode);
 }
 
 function openLevelSelect(mode) {
@@ -213,12 +263,29 @@ function handleDrop(tile, zoneKind, orderId) {
 
 function handleAction(action, dataset) {
   switch (action) {
-    case 'start':
-      // Goes to the level select for the mode the player was last in, which is
-      // why `activeMode` is a module variable rather than read back from the
-      // DOM. Tapping a mode card sets it the same way, so the two routes into a
-      // level can never disagree about which mode is current.
-      openLevelSelect(activeMode);
+    case 'new-game':
+      // New Game and Continue both land on the same mode select. The only
+      // difference is that this one throws the progress away first, and it asks
+      // before doing that. Both are worded as a deliberate choice rather than
+      // hidden behind a single Play button, because "start over" and "pick up
+      // where I was" are genuinely different intents and a single button cannot
+      // guess which one was meant.
+      if (hasProgress()) {
+        pendingConfirm = { kind: 'reset' };
+        view.showResetConfirm();
+      } else {
+        // Nothing to lose, so nothing to ask. A confirmation about a wipe that
+        // would not happen is a dialog that trains players to dismiss dialogs.
+        clearProgress();
+        view.setContinueEnabled(false);
+        view.showScreen('modes');
+      }
+      break;
+
+    case 'continue':
+      // Progress is left alone, so the level select that follows shows the
+      // levels already unlocked in every mode.
+      view.showScreen('modes');
       break;
 
     case 'how-to-play':
@@ -244,6 +311,7 @@ function handleAction(action, dataset) {
       // after the language changes or the button would read "Mute" while
       // actually unmuting.
       view.setMuteIcon(audio.isMuted());
+      view.setContinueEnabled(hasProgress());
       if (state) view.render(state);
       else if (document.body.dataset.screen === 'levels') {
         view.renderLevelGrid(activeMode, unlockedFor(activeMode));
@@ -252,6 +320,37 @@ function handleAction(action, dataset) {
 
     case 'back-to-menu':
       backToMenu();
+      break;
+
+    case 'back-to-modes':
+      // Level select came from the mode screen, so Back returns there rather
+      // than jumping over it to the menu.
+      view.showScreen('modes');
+      break;
+
+    case 'toggle-game-menu':
+      view.toggleGameMenu();
+      break;
+
+    case 'leave-level':
+      // The panel gets out of the way before the question appears, so the player
+      // is not looking at two things at once when deciding.
+      view.closeGameMenu({ restoreFocus: false });
+      if (state) {
+        pendingConfirm = { kind: 'leave' };
+        // The clock stops for the question. Reading a dialog must never be what
+        // makes a customer walk out, and `startTimer` resets the elapsed time so
+        // the paused seconds are not charged to whoever is still waiting.
+        stopTimer();
+        view.showLeaveConfirm();
+      }
+      break;
+
+    case 'levels-from-overlay':
+      // The level-complete overlay's "Choose level" goes to the level select for
+      // the mode just played, not the menu. A finished level is a moment to pick
+      // what to play next, and the mode screen is one tap further back.
+      leaveToLevelSelect();
       break;
 
     case 'select-order':
@@ -271,21 +370,36 @@ function handleAction(action, dataset) {
       break;
 
     case 'confirm-stay':
-      // The dish is worth more than the switch. Nothing changes but the clock,
-      // which resumes from the moment this was answered.
+      // The safe answer in all three cases: the dish keeps its work, the progress
+      // keeps its levels, the level keeps its customers. Only the clock differs
+      // between the in-game question and the two menu ones.
       view.showOverlay(null);
-      startTimer();
+      if (pendingConfirm?.kind === 'switch') startTimer();
+      pendingConfirm = null;
       break;
 
     case 'confirm-leave':
-      if (state && pendingOrderId !== null) {
+      if (!pendingConfirm) break;
+      if (pendingConfirm.kind === 'reset') {
+        // Rule 11: erasing every finished level is irreversible, and the only
+        // thing standing between a stray tap and a wiped save is the question
+        // that was just read and answered on purpose.
+        clearProgress();
+        view.showOverlay(null);
+        view.setContinueEnabled(false);
+        view.showScreen('modes');
+        pendingConfirm = null;
+      } else if (pendingConfirm.kind === 'leave') {
+        leaveToLevelSelect();
+        pendingConfirm = null;
+      } else if (state && pendingConfirm.orderId !== null) {
         S.clearStand(state);
-        S.pickCustomer(state, pendingOrderId);
-        pendingOrderId = null;
+        S.pickCustomer(state, pendingConfirm.orderId);
         view.showOverlay(null);
         view.feedback(null);
         view.render(state);
         startTimer();
+        pendingConfirm = null;
       }
       break;
 
@@ -308,7 +422,7 @@ function handleAction(action, dataset) {
 
     case 'next-level':
       if (state && state.level < LEVELS_PER_MODE) startLevel(state.mode, state.level + 1);
-      else backToMenu();
+      else leaveToLevelSelect();
       break;
 
     default:
@@ -325,6 +439,7 @@ export function init() {
   view.applyStaticStrings();
   audio.init();
   view.setMuteIcon(audio.isMuted());
+  view.setContinueEnabled(hasProgress());
 
   drag.configure({ onDrop: handleDrop });
   drag.init(document);
@@ -363,7 +478,7 @@ export function init() {
         return;
       }
       if (result.reason === 'confirm.switch') {
-        pendingOrderId = Number(chip.dataset.orderId);
+        pendingConfirm = { kind: 'switch', orderId: Number(chip.dataset.orderId) };
         // The clock stops for the question. Reading a dialog must never be what
         // makes a customer walk out, and `startTimer` resets the elapsed time so
         // the paused seconds are not charged to whoever is still waiting.
@@ -376,6 +491,26 @@ export function init() {
       }
       view.feedback(t(result.reason), 'hint');
       view.render(state);
+    }
+  });
+
+  // The game menu panel goes away when a finger lands outside it, the same way
+  // a real dropdown does. The click handler above already dispatched the action
+  // on the item itself, so the panel is still open only when the tap missed it.
+  document.addEventListener('pointerdown', (event) => {
+    if (!view.isGameMenuOpen()) return;
+    const panel = view.dom.gameMenu;
+    if (!panel?.contains(event.target) && !view.dom.hudMenuButton?.contains(event.target)) {
+      view.closeGameMenu();
+    }
+  });
+
+  // Escape closes the game menu. The confirm and rules dialogs have their own
+  // escape handling; this one is specifically for the dropdown panel.
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && view.isGameMenuOpen()) {
+      event.preventDefault();
+      view.closeGameMenu();
     }
   });
 
