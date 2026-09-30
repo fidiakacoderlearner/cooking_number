@@ -19,6 +19,7 @@ import {
   patienceSeconds,
   arrivalGapSeconds,
   minArrivalGapSeconds,
+  timeBudgetSeconds,
   isValidMode,
   isValidLevel,
 } from '../src/core/difficulty.js';
@@ -57,13 +58,52 @@ test('arrivals get faster as the level rises, in every mode', () => {
   }
 });
 
-test('a harder mode brings customers in sooner at the same level', () => {
+/**
+ * Difficulty ordering is measured on the time budget, not on the arrival interval.
+ *
+ * The interval is only half the arithmetic: a mode can bring customers in faster
+ * and still be easier if each one waits longer. That is exactly the case for
+ * Easy once its interval dropped to 10/10/9/9/8, so comparing the two intervals
+ * directly would report Easy as harder than Medium, which is backwards. The
+ * budget is the number a player actually feels, and it is what has to fall as
+ * the mode gets harder.
+ */
+test('a harder mode gives less time per customer at the same level', () => {
   for (const level of EVERY_LEVEL) {
-    const easy = baseArrivalSeconds(MODES.easy, level);
-    const medium = baseArrivalSeconds(MODES.medium, level);
-    const hard = baseArrivalSeconds(MODES.hard, level);
-    assert.ok(easy >= medium, `level ${level}: medium should not beat easy`);
-    assert.ok(medium >= hard, `level ${level}: hard should not beat medium`);
+    const easy = timeBudgetSeconds(MODES.easy, level);
+    const medium = timeBudgetSeconds(MODES.medium, level);
+    const hard = timeBudgetSeconds(MODES.hard, level);
+    assert.ok(
+      easy > medium,
+      `level ${level}: easy should be more generous than medium (${easy.toFixed(1)}s vs ${medium.toFixed(1)}s)`,
+    );
+    assert.ok(
+      medium > hard,
+      `level ${level}: medium should be more generous than hard (${medium.toFixed(1)}s vs ${hard.toFixed(1)}s)`,
+    );
+  }
+});
+
+test('the time budget shrinks as the level rises, in every mode', () => {
+  for (const mode of MODE_LIST) {
+    for (let level = 1; level < LEVELS_PER_MODE; level += 1) {
+      assert.ok(
+        timeBudgetSeconds(mode, level + 1) < timeBudgetSeconds(mode, level),
+        `${mode}: level ${level + 1} budget should be tighter than level ${level}`,
+      );
+    }
+  }
+});
+
+test('a budget is never so tight that a customer cannot be answered at all', () => {
+  for (const mode of MODE_LIST) {
+    for (const level of EVERY_LEVEL) {
+      const budget = timeBudgetSeconds(mode, level);
+      assert.ok(
+        budget > 8,
+        `${mode} level ${level}: only ${budget.toFixed(1)}s per customer, too tight to be fair`,
+      );
+    }
   }
 });
 

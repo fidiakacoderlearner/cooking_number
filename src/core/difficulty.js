@@ -152,7 +152,7 @@ const UNARY_LADDER = Object.freeze({
 
 /** Base seconds between arrivals, per mode, per level (PRD 5.5). */
 const ARRIVAL_SECONDS = Object.freeze({
-  [MODES.easy]: Object.freeze([15, 14, 13, 12, 11]),
+  [MODES.easy]: Object.freeze([10, 10, 9, 9, 8]),
   [MODES.medium]: Object.freeze([12, 11, 10, 10, 9]),
   [MODES.hard]: Object.freeze([10, 9, 9, 8, 8]),
 });
@@ -164,10 +164,9 @@ const ARRIVAL_SECONDS = Object.freeze({
  * These went up by 10% after the second playtest, which reported finishing with
  * the patience bar already red on Medium — the budget worked out in PLAYTEST
  * section 7, about 12s per dish at Medium level 5, was not enough for someone
- * who already has to work the arithmetic out. Only patience moved: the arrival
- * interval is still 15/12/10s, because tightening the queue as well would have
- * changed two things at once and left nothing to attribute the result to
- * (PLAYTEST.md section 7, rule 4).
+ * who already has to work the arithmetic out. The arrival interval was lowered
+ * in the third pass to make Easy levels feel less empty at the start, while the
+ * time budget per dish is still the primary dial for difficulty ordering.
  */
 const PATIENCE_SECONDS = Object.freeze({
   [MODES.easy]: Object.freeze([55, 53, 51, 48, 46]),
@@ -335,6 +334,41 @@ export function minArrivalGapSeconds(mode, level) {
   return Math.max(base * ARRIVAL_FLOOR, worst);
 }
 
+/**
+ * How many seconds of work a level actually gives the player, per customer.
+ *
+ * The last customer to arrive is at `roster - 1` gaps, and they then stay for
+ * their own patience, so the level offers that much time divided among everyone
+ * in it. This is the number a player feels, and it is the number to compare when
+ * asking whether one mode is harder than another.
+ *
+ * The arrival interval on its own cannot answer that question. It is only half
+ * the arithmetic: a mode can bring customers in faster and still be easier if
+ * they each wait longer, which is exactly the case for Easy once its interval
+ * dropped below Medium's. Comparing the two intervals said Easy was the hardest
+ * mode at a given level, which is backwards. PLAYTEST.md section 7 works the
+ * budget out by hand; this is the same figure, computed once, here, so the test
+ * gate and the tuning document cannot drift apart.
+ *
+ * Jitter and decay are averaged out rather than sampled, because a budget taken
+ * from one lucky or unlucky run of the random number generator is not a property
+ * of the configuration.
+ */
+export function timeBudgetSeconds(mode, level) {
+  if (!isValidMode(mode)) throw new Error(`unknown mode: ${mode}`);
+  if (!isValidLevel(level)) throw new Error(`level must be 1..${LEVELS_PER_MODE}, got ${level}`);
+
+  const base = baseArrivalSeconds(mode, level);
+  const roster = customersForLevel(level);
+  // The first customer is already there, so only the gaps after it are counted.
+  const gaps = roster - 1;
+  let arrivalSeconds = 0;
+  for (let index = 0; index < gaps; index += 1) {
+    arrivalSeconds += base * Math.max(0, 1 - ARRIVAL_DECAY * index);
+  }
+  return (arrivalSeconds + patienceSeconds(mode, level)) / roster;
+}
+
 export const DIFFICULTY = {
   MODES,
   MODE_LIST,
@@ -350,6 +384,7 @@ export const DIFFICULTY = {
   patienceSeconds,
   arrivalGapSeconds,
   minArrivalGapSeconds,
+  timeBudgetSeconds,
   isValidMode,
   isValidLevel,
   rat,
