@@ -29,6 +29,13 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 >
 > **Cara menjalankan:**
 >
+> **Di HP atau di mana saja (cara termudah):** buka
+> `https://cookingnumber.vercel.app/`. Game di-host Vercel (gratis, repo tetap
+> private, auto-deploy tiap push), bisa dibuka dari jaringan mana pun, tidak
+> perlu satu WiFi dengan PC. Ini juga link untuk submission.
+>
+> Lanjutan pengembangan lokal (opsional):
+>
 > ```bash
 > cd C:\Users\ASUS\Documents\cooking_number
 > python -m http.server 8099 --bind 0.0.0.0 -d .
@@ -48,10 +55,9 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 
 ### Urutan kerja 30 September 2026
 
-Tiga hal, dikerjakan berturut-turut. Yang pertama sudah selesai; yang kedua
-sudah selesai sebagai langkah pertama dari sesi ini (di-swap karena diminta
-pengguna): push tertunda karena GitHub Pages ditunda oleh keputusan repo publik
-vs berbayar.
+Tiga hal dari rencana awal (kartu mode, push, deploy). Semuanya sudah selesai
+pada 30 September; urutan dikerjakan di-swap karena diminta pengguna (CSS dulu,
+push setelah), dan GitHub Pages diganti Vercel.
 
 1. **Kartu mode di layar pilih mode tidak selebar tombol Back — [x] selesai.**
    Dilaporkan manual di layar lebar (komputer): tiga kartu mode terlihat lebih
@@ -79,35 +85,29 @@ vs berbayar.
    bukan menempel kiri), dan kartu tidak ikut melebar (480px dari 1280px).
    `npm test` 160/160 dan `npm run check:styles` hijau.
 
-2. **Push ke GitHub.** Repo `origin` =
-   `https://github.com/fidiakacoderlearner/cooking_number.git` masih **kosong**
-   (0 ref), jadi ini adalah push pertama. Split 18 file yang belum di-commit
-   jadi tiga commit supaya riwayatnya bisa dibaca:
-   - `feat(core): adjust Easy arrival timing, add timeBudgetSeconds` —
-     `src/core/difficulty.js`, `test/difficulty.test.js`
-   - `feat(ui): menu redesign, level best results, and gameplay polish` —
-     `index.html`, `src/ui/*`, `styles/*` (termasuk `base.css` untuk
-     `--menu-width`), `scripts/smoke-ui.js`, `test/progress.test.js`
-   - `docs: sync documentation with the 29 September work` — `README.md`,
-     `PLAN.md`, `PLAYTEST.md`, `SUBMISSION.md`, `CHANGELOG.md`
+2. **Push ke GitHub — [x] selesai.** Repo `origin` =
+   `https://github.com/fidiakacoderlearner/cooking_number.git` sudah berisi
+   riwayat 3 commit dari 29 September work:
+   - `feat(core): adjust Easy arrival timing, add timeBudgetSeconds`
+   - `feat(ui): menu redesign, level best results, and gameplay polish`
+   - `docs: sync documentation with the 29 September work`
+   Branch `main` track `origin/main`.
 
-   Lalu `git push -u origin main`.
-
-3. **Aktifkan GitHub Pages — ditunda.** Repo sengaja tetap **private** sampai
-   kamu bilang lain. GitHub Pages di paket Free hanya melayani repo publik,
-   jadi ini butuh dua hal yang belum diputuskan: ubah repo ke publik, atau
-   naik ke paket berbayar. Jangan kerjakan sampai itu diputuskan. Repo sudah
-   siap-deploy begitu diputuskan: tanpa build step, semua path relatif, dan
-   `manifest.webmanifest` memakai `start_url: "./index.html"`, jadi
-   `https://fidiakacoderlearner.github.io/cooking_number/` langsung bisa
-   jalan tanpa perubahan kode.
+3. **Deploy ke Vercel — [x] selesai.** Game live di
+   `https://cookingnumber.vercel.app/` (auto-deploy tiap push ke `main`, repo
+   tetap private). Ini menggantikan kebutuhan GitHub Pages, yang ditunda karena
+   paket Free hanya melayani repo publik dan repo sengaja dijaga private.
+   Alias `cooking-number.vercel.app` bisa dipasang di Dashboard → Domains kalau
+   mau URL yang lebih pendek.
 
 ---
 
-Status saat plan ini ditulis (**29 September 2026**, sisa ±19 hari ke deadline):
+Status saat plan ini ditulis (**30 September 2026**, sisa ±18 hari ke deadline):
 Fase 1, 2, 2.5 selesai dan terverifikasi. Fase 3 secara teknis selesai —
 **kelima belas kombinasi mode x level sudah bisa dimainkan sampai tamat secara
-otomatis.** Kita ~3 minggu lebih maju dari jadwal PRD di §10.
+otomatis.** Game sudah live di `https://cookingnumber.vercel.app/` (auto-deploy
+tiap push, repo tetap private). Yang tersisa **hanya playtest ketiga**, kalibrasi
+spawner/kesabaran, rubrik lomba, dan video demo.
 
 **Semua commit code sudah landed** — kaidah operasi, `2³` bisa disajikan,
 `2 ² ²` tampil sebagai `2⁴`, kesabaran +10%, tombol Mulai + Aturan Main,

@@ -48,9 +48,15 @@ http://<IP-KAMU>:8099/
 Kalau halaman tidak terbuka, izinkan Python di **Windows Defender Firewall**
 (jaringan privat).
 
-Alternatif yang lebih berguna: deploy sekali ke GitHub Pages atau Netlify Drop,
-lalu dapat link yang bisa dibuka siapa pun. Link itu juga yang dipakai untuk
-submission, jadi dua kebutuhan satu kerja.
+**Alternatif:** kalau tidak ingin setup server, buka langsung dari HP:
+
+```
+https://cookingnumber.vercel.app/
+```
+
+Game di-host di Vercel (gratis, repo tetap private, auto-deploy tiap push).
+Link ini bisa dibuka dari mana saja (4G, WiFi lain), tidak perlu satu jaringan
+dengan PC. Gunakan link ini juga untuk submission — satu link, dua kebutuhan.
 
 **Membuka level yang belum terbuka** (supaya tidak harus menyelesaikan level
 sebelumnya hanya demi sampai ke level 5):

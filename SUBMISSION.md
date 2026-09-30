@@ -182,7 +182,7 @@ Sengaja dituliskan karena lebih mudah ditanyakan juri daripada ditemukan sendiri
 
 | # | Berkas atau bahan | Status |
 |---|---|---|
-| 1 | Link yang bisa dibuka tanpa instalasi | Belum. Perlu di-deploy ke GitHub Pages atau Netlify Drop, lalu isi `LINK` di sini |
+| 1 | Link yang bisa dibuka tanpa instalasi | **Selesai:** `https://cookingnumber.vercel.app/` (host Vercel, auto-deploy tiap push, repo private). Bisa dibuka dari HP/PC mana pun tanpa instalasi. |
 | 2 | Video demo 1-2 menit | Belum. Bisa diambil dari rekaman layar playtest |
 | 3 | Screenshot: menu, satu level sedang dimainkan, overlay level selesai | Belum |
 | 4 | Deskripsi proyek | Sudah ada di bagian 1 |

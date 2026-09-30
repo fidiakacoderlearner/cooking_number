@@ -7,6 +7,15 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+- **Game live di Vercel.** `https://cookingnumber.vercel.app/` — hosting
+  statis gratis, repo GitHub tetap **private** (Vercel bisa deploy repo
+  private, jadi tidak perlu mengubah keputusan repo publik vs berbayar), dan
+  auto-redeploy tiap push ke `main`. Tanpa build step, semua path relatif, dan
+  `manifest.webmanifest` memakai `start_url: "./index.html"`, jadi tidak ada
+  satu pun kode yang berubah untuk bisa di-hosting. Link ini juga yang dipakai
+  untuk playtest ketiga dan submission.
+
 ### Fixed
 - **Kartu mode di layar pilih mode lebih sempit dan tidak segaris dengan tombol
   Back di layar lebar.** `.menu__modes` dibatasi `min(100%, 30rem)` (480px)
