@@ -35,11 +35,15 @@ folder tempat perintah dijalankan, dan kalau bukan root repo, browser menampilka
 *directory listing* (daftar file) alih-alih game. Kalau yang muncul daftar file,
 itu artinya flag `-d` hilang atau path-nya salah.
 
-Di HP, terhubung ke WiFi yang sama, buka:
+Di HP, terhubung ke WiFi yang sama, buka (pakai IP PC yang tampil di `ipconfig`,
+bukan hardcode di bawah — IP berubah tiap kali DHCP diperbarui):
 
 ```
-http://192.168.1.6:8099/
+http://<IP-KAMU>:8099/
 ```
+
+`<IP-KAMU>` = baris "IPv4 Address" di `ipconfig` untuk adapter Wi-Fi PC.
+`ERR_ADDRESS_UNREACHABLE` hampir selalu berarti IP sudah salah, bukan server mati.
 
 Kalau halaman tidak terbuka, izinkan Python di **Windows Defender Firewall**
 (jaringan privat).
@@ -141,44 +145,44 @@ video demo untuk submission.
 Satu blok per run. Tulis saja apa adanya.
 
 ```
-RUN:            ____________________  (contoh: Easy L1)
-Tanggal:        ____________________
+RUN:            Semua Level Easy  (contoh: Easy L1)
+Tanggal:        29 September 2026
 
 [ ] Mengetuk chip untuk mulai masak terasa jelas tanpa tombol?
-    ->       ______________________________________________________
+    ->       Aman
 
 [ ] Chip hijau cukup jelas menunjuk pelanggan yang sedang dimasak?
-    ->       ______________________________________________________
+    ->       Iya
 
 [ ] Nilai akhir di piring sekarang terbaca? Terlalu besar atau pas?
-    ->       ______________________________________________________
+    ->       Pas
 
 [ ] Warna bar kesabaran: kuning lalu merah. Terlihat? Berapa saat mulai berubah?
-    ->       ______________________________________________________
+    ->       Terlihat
 
 [ ] Dialog konfirmasi pindah pelanggan: muncul di saat yang tepat?
-    ->       ______________________________________________________
+    ->       iya
 
 [ ] Walkout terjadi meski kamu tahu cara dan tidak lambat?
-    ->       ______________________________________________________
+    ->       tidak
 
 [ ] Berapa chip yang terlihat sekaligus?
-    ->       ______________________________________________________
+    ->       3
 
 [ ] Level selesai sebelum pelanggan terakhir datang? Terlalu lama?
-    ->       ______________________________________________________
+    ->       tidak
 
 [ ] Waktu nyata satu puzzle: chip muncul -> tersaji
-    ->       ____ detik   (ini angka kalibrasi sesungguhnya, bukan konstanta)
+    ->       10 detik   (ini angka kalibrasi sesungguhnya, bukan konstanta)
 
 [ ] Tile pecahan (0.5, 1/3) masih membingungkan?
-    ->       ______________________________________________________
+    ->       tidak
 
 [ ] Saat drag tile ke stand, halaman ikut ter-scroll?
-    ->       ______________________________________________________
+    ->       tidak
 
 [ ] Catatan lain:
-    ->       ______________________________________________________
+    ->       untuk sekarang sudah good, tapi jarak terlalu seggang untuk level awal (1 dan 2) mode easy, jawaban sudah terjawab, tapi pelanggan selanjutnya belum datang, 9s biasanya, tapi ini karena saya seorang anak kuliah, mungkin jarak datangnya bisa dipercepat untuk level awal mode easy ini
 ```
 
 ### Dua pertanyaan yang paling penting
@@ -286,7 +290,7 @@ Device: Infinix Note 30 Pro. Run: Hard level 1 dan 2.
 **Yang sudah diperbaiki dari playtest kedua**
 
 Kaidah operasi, bug `hasDish`, `2^2^2` → `2^4`, antresentasi, tombol Mulai
-+ Aturan Main, musik dan efek suara. `npm test` 149 hijau, smoke test 15 level
++ Aturan Main, musik dan efek suara. `npm test` 160 hijau, smoke test 15 level
 finishable.
 
 ---
@@ -296,46 +300,56 @@ finishable.
 Kalau playtest sudah selesai, bagian ini diisi sebagai hasil analisis, bukan
 oleh pemain.
 
-| Konstanta | File | Nilai sekarang (setelah +10%) | Usulan baru | Dasar |
+| Konstanta | File | Nilai sekarang | Usulan baru | Dasar |
 |---|---|---|---|---|
-| `PATIENCE_SECONDS.easy` | `difficulty.js:173` | 55, 53, 51, 48, 46 | | |
-| `PATIENCE_SECONDS.medium` | `difficulty.js:174` | 48, 46, 44, 41, 37 | | |
-| `PATIENCE_SECONDS.hard` | `difficulty.js:175` | 42, 40, 36, 33, 31 | | |
-| `ARRIVAL_SECONDS.easy` | `difficulty.js:163` | 15, 14, 13, 12, 11 | | |
-| `ARRIVAL_SECONDS.medium` | `difficulty.js:164` | 12, 11, 10, 10, 9 | | |
-| `ARRIVAL_SECONDS.hard` | `difficulty.js:165` | 10, 9, 9, 8, 8 | | |
-| `MAX_ON_SCREEN` | `difficulty.js:43` | 3 | | |
+| `PATIENCE_SECONDS.easy` | `difficulty.js` | 55, 53, 51, 48, 46 | | |
+| `PATIENCE_SECONDS.medium` | `difficulty.js` | 48, 46, 44, 41, 37 | | |
+| `PATIENCE_SECONDS.hard` | `difficulty.js` | 42, 40, 36, 33, 31 | | |
+| `ARRIVAL_SECONDS.easy` | `difficulty.js` | **10, 10, 9, 9, 8** | | |
+| `ARRIVAL_SECONDS.medium` | `difficulty.js` | 12, 11, 10, 10, 9 | | |
+| `ARRIVAL_SECONDS.hard` | `difficulty.js` | 10, 9, 9, 8, 8 | | |
+| `MAX_ON_SCREEN` | `difficulty.js` | 3 | | |
+
+Nomor baris sengaja tidak dicantumkan: satu suntingan di atas membuat semua nomor
+bergeser, dan tabel yang enthal menunjuk baris yang sudah salah lebih buruk
+daripada tabel yang tidak menunjuk sama sekali.
 
 **Perubahan yang sudah terjadi di angka-angka ini sejak playtest kedua:**
 
 - `PATIENCE_SECONDS` naik 10% di ketiga mode. Alasannya playtest kedua melaporkan
   sering selesai dengan bar kesabaran sudah merah di Medium. Yang **tidak**
-  berubah: `ARRIVAL_SECONDS` dan `MAX_ON_SCREEN`. Kalau kedua angka ini ikut
-  diubah, playtest ketiga akan mengukur dua perubahan sekaligus, dan tidak akan
-  bisa diketahui mana yang menyebabkan perbaikan.
+  berubah waktu itu: `MAX_ON_SCREEN`.
+- `ARRIVAL_SECONDS.easy` turun dari 15/14/13/12/11 ke **10/10/9/9/8** di
+  playtest ketiga, karena level Easy terasa terlalu longgar di awal — 15 detik
+  untuk pelanggan kedua terasa lama kalau hanya ada operator `+` dan `-`.
+  Medium dan Hard sengaja tidak disentuh.
 
 **Hitungan yang sudah ada, supaya tidak mengarang angka**
 
 Anggaran waktu per hidangan = (kapan pelanggan terakhir datang + kesabaran) /
-jumlah pelanggan. Angka ini turun drastis seiring level naik, sementara bebannya
-naik:
+jumlah pelanggan. Angka ini dihitung oleh `timeBudgetSeconds()` di
+`src/core/difficulty.js` — bukan ditulis tangan di sini, jadi test dan dokumen ini
+selalu memakai angka yang sama. Jitter dan decay dirata-ratakan, karena anggaran
+dari satu run RNG yang beruntung atau buruk bukan sifat dari konfigurasinya.
 
-| Mode | Level 1 | Level 5 |
-|---|---|---|
-| Easy | 25,5 detik | **16,2 detik** |
-| Medium | 21,2 detik | **12,9 detik** |
-| Hard | 18,6 detik | **11,8 detik** |
+| Mode | Level 1 | Level 3 | Level 5 |
+|---|---|---|---|
+| Easy | 21,1 detik | 15,6 detik | **12,2 detik** |
+| Medium | 20,8 detik | 15,3 detik | **11,9 detik** |
+| Hard | 17,8 detik | 13,1 detik | **10,3 detik** |
 
-> **Catatan:** Angka di atas dihitung ulang dari `PATIENCE_SECONDS` + `ARRIVAL_SECONDS`
-> yang **sudah diperbarui** (+10% patience, arrival tidak berubah). Angka lama
-> (23,8/14,9, 20,0/12,1, 17,0/10,5) dihitung dari angka lama dan sudah tidak
-> relevan untuk playtest ketiga.
+> **Angka Easy berubah di playtest ketiga.** Interval kedatangan Easy turun dari
+> 15/14/13/12/11 ke **10/10/9/9/8** karena level Easy terasa terlalu longgar di
+> awal. Medium dan Hard tidak disentuh. Urutan kesulitan sekarang diukur dari
+> kolom anggaran di atas, bukan dari interval kedatangan mentah: interval Easy
+> sekarang lebih cepat dari Medium, tetapi anggaran waktunya tetap lebih besar
+> karena kesabarannya jauh lebih panjang. Angka lama (25,5/16,2, 21,2/12,9,
+> 18,6/11,8) dihitung dari interval lama dan sudah tidak relevan.
 
-Jadi penyusutannya sekitar 36-38% di ketiga mode. Playtest
+Jadi penyusutannya sekitar 37-42% di ketiga mode. Playtest
 pertama melaporkan Hard L1 terasa pas, playtest kedua bilang tingkat
-kesulitannya "normal aja dikurangi" — **patience sudah dinaikkan 10%**.
-Kedua angka sengaja tidak disentuh lagi sampai playtest ketiga, supaya tidak
-ada dua kali pengujian dengan game yang berbeda.
+kesulitannya "normal aja dikurangi" — **patience sudah dinaikkan 10%**, dan
+interval Easy dipercepat 5 detik di playtest ketiga.
 
 **Aturan keputusan:**
 

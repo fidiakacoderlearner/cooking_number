@@ -66,6 +66,7 @@ src/ui/                 view, state, controller
   view.js               seluruh render DOM
   drag.js               interact.js + tap-to-place
   controller.js         loop permainan, timer, transisi
+  audio.js              musik loop per level dan efek suara (Web Audio API)
   app.js                titik masuk
 assets/placeholder/     WebP datar, siap diganti aset tim
 vendor/                 interact.js 1.10.27
@@ -88,7 +89,7 @@ SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 | Target | Bulat dan positif, karena pelanggan memesan "8 porsi" |
 | Pelanggan | Datang **berkala satu per satu**, menumpuk kalau pemain lambat |
 | Kesabaran | **Per pelanggan**, semua jalan bersamaan. Easy 55–46s, Medium 48–37s, Hard 42–31s (level 1 → 5) |
-| Spawner | Interval dasar 15/12/10 detik, dengan jitter dan decay. Layar penuh = spawner berhenti |
+| Spawner | Interval dasar 10/12/10 detik, dengan jitter dan decay. Layar penuh = spawner berhenti |
 | Batas layar | Maksimal 3 pelanggan menunggu sekaligus |
 | Syarat gagal | **Walkout tanpa reward**. Tidak ada nyawa, tidak ada pelanggan pengganti |
 | Level gagal | Tidak ada. Level selesai saat roster habis, yang beda cuma skor |
@@ -99,6 +100,8 @@ SUBMISSION.md           bahan deskripsi proyek dan checklist rubrik lomba
 | Input | Ketuk tile, atau seret tile ke stand. Menyajikan lewat tombol Sajian atau ketuk piring |
 | Bahasa | English sebagai default, toggle ID/EN, pilihan tersimpan di `localStorage` |
 | Struktur level | 5 level per mode, roster pelanggan 4/5/6/7/8 |
+| Alur menu | `menu → pilih mode → pilih level → main`. New Game (hapus progress, dengan konfirmasi) / Continue (lanjut dari progress, level terbuka tetap terlihat) |
+| Skor tertinggi | Disimpan **per level** di `cn.scores` (bukan global), karena `SCORE_BASE` dan jumlah roster berbeda per mode |
 
 ## Bagaimana generator soal bekerja
 

@@ -16,7 +16,7 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 >
 > ```
 > git log --oneline -5          # 5 commit terakhir, semua hijau
-> npm test                      # harus 149/149
+> npm test                      # harus 160/160
 > ```
 >
 > **Yang harus Anda lakukan sendiri (tidak bisa dikerjakan dari meja):**
@@ -34,14 +34,73 @@ Status rencana kerja **Cooking Number**. Diperbarui setiap ada perubahan status.
 > python -m http.server 8099 --bind 0.0.0.0 -d .
 > ```
 >
-> Buka `http://192.168.1.6:8099/` dari HP. Flag `-d .` wajib, tanpa itu browser
-> menampilkan *directory listing*.
+> Buka `http://<IP-KAMU>:8099/` dari HP, di mana `<IP-KAMU>` adalah baris
+> "IPv4 Address" di `ipconfig` pada adapter Wi-Fi PC. IP berubah tiap kali
+> DHCP diperbarui — `ERR_ADDRESS_UNREACHABLE` hampir selalu berarti IP sudah
+> salah. Flag `-d .` wajib ada, tanpa itu browser menampilkan *directory
+> listing*.
 >
 > **Kalau playtest sudah kirim:** saya kerjakan bagian 2 di bawah (kalibrasi
 > angka) dan bagian Fase 4 (submission).
 >
 > **Kalau belum:** tidak ada pekerjaan kode yang tertunda. Semua yang tersisa
 > butuh tangan Anda di HP asli atau di formulir.
+
+### Urutan kerja 30 September 2026
+
+Tiga hal, dikerjakan berturut-turut. Yang pertama sudah selesai; yang kedua
+sudah selesai sebagai langkah pertama dari sesi ini (di-swap karena diminta
+pengguna): push tertunda karena GitHub Pages ditunda oleh keputusan repo publik
+vs berbayar.
+
+1. **Kartu mode di layar pilih mode tidak selebar tombol Back — [x] selesai.**
+   Dilaporkan manual di layar lebar (komputer): tiga kartu mode terlihat lebih
+   sempit daripada tombol Back yang ada di footer, padahal keduanya adalah
+   elemen selebar layar. Akar masalahnya di `styles/layout.css`:
+   - `.menu__modes` (baris 58 pada saat itu) diberi `width: min(100%, 30rem)`,
+     jadi kolom kartu **dibatasi 480px** dan tidak ikut melebar.
+   - `.screen__footer .btn` (baris 126 pada saat itu) diberi `width: 100%` dan
+     tidak punya pembatas lebar sama sekali, jadi tombol Back melebar sampai
+     tepi layar.
+   - Ada akar kedua yang tidak terlihat di diff awal: `.screen--modes` tidak
+     punya `align-items`, jadi kotak yang punya `width` eksplisit tidak di-stretch
+     dan `.menu__modes` menempel di kiri.
+
+   Perbaikan yang dipilih: **memberi keduanya batas lebar yang sama**. `.menu__modes`
+   dan `.screen--modes .screen__footer` sekarang berbagi variabel `--menu-width`
+   (30rem) di `styles/base.css` dan di-rata tengah (`align-self: center`). Tombol
+   Back level select sengaja **tidak** dibatasi karena grid level memang mengisi
+   layar (Lihat keputusan 30 September di tabel bawah: kartu mode harus selebar
+   Back-nya sendiri, bukan seluruh layar).
+
+   Terverifikasi: `scripts/smoke-ui.js` kini mengukur lebar dan posisi kiri kartu
+   mode vs tombol Back di viewport 1280px (di lebar HP keduanya 100% dan bug-nya
+   tidak kelihatan). Hasil: 480px vs 480px, kiri 400px vs 400px (rata tengah,
+   bukan menempel kiri), dan kartu tidak ikut melebar (480px dari 1280px).
+   `npm test` 160/160 dan `npm run check:styles` hijau.
+
+2. **Push ke GitHub.** Repo `origin` =
+   `https://github.com/fidiakacoderlearner/cooking_number.git` masih **kosong**
+   (0 ref), jadi ini adalah push pertama. Split 18 file yang belum di-commit
+   jadi tiga commit supaya riwayatnya bisa dibaca:
+   - `feat(core): adjust Easy arrival timing, add timeBudgetSeconds` —
+     `src/core/difficulty.js`, `test/difficulty.test.js`
+   - `feat(ui): menu redesign, level best results, and gameplay polish` —
+     `index.html`, `src/ui/*`, `styles/*` (termasuk `base.css` untuk
+     `--menu-width`), `scripts/smoke-ui.js`, `test/progress.test.js`
+   - `docs: sync documentation with the 29 September work` — `README.md`,
+     `PLAN.md`, `PLAYTEST.md`, `SUBMISSION.md`, `CHANGELOG.md`
+
+   Lalu `git push -u origin main`.
+
+3. **Aktifkan GitHub Pages — ditunda.** Repo sengaja tetap **private** sampai
+   kamu bilang lain. GitHub Pages di paket Free hanya melayani repo publik,
+   jadi ini butuh dua hal yang belum diputuskan: ubah repo ke publik, atau
+   naik ke paket berbayar. Jangan kerjakan sampai itu diputuskan. Repo sudah
+   siap-deploy begitu diputuskan: tanpa build step, semua path relatif, dan
+   `manifest.webmanifest` memakai `start_url: "./index.html"`, jadi
+   `https://fidiakacoderlearner.github.io/cooking_number/` langsung bisa
+   jalan tanpa perubahan kode.
 
 ---
 
@@ -52,8 +111,10 @@ otomatis.** Kita ~3 minggu lebih maju dari jadwal PRD di §10.
 
 **Semua commit code sudah landed** — kaidah operasi, `2³` bisa disajikan,
 `2 ² ²` tampil sebagai `2⁴`, kesabaran +10%, tombol Mulai + Aturan Main,
-animasi antrean, musik dan efek suara. Yang tersisa **hanya playtest ketiga**,
-kalibrasi spawner/kesabaran, rubrik lomba, dan video demo.
+animasi antrean, musik dan efek suara, menu utama dengan New Game/Continue,
+menu hamburger dalam level, skor tertinggi per level, dan volume musik yang
+diturunkan. Yang tersisa **hanya playtest ketiga**, kalibrasi
+spawner/kesabaran, rubrik lomba, dan video demo.
 
 ### Keputusan 28 September 2026
 
@@ -69,12 +130,18 @@ cek dulu daftar ini supaya tidak dibahas ulang.
 | Menekan chip = memuat stand, tombol "Masak untuk dia" **dihapus** | Playtest minta elemen lebih sedikit di satu layar |
 | Pindah pelanggan: ≤2 tile bebas, >2 tile **popup konfirmasi**, jam berhenti | Karena satu ketukan kini bisa menghapus hidangan, aturan 11 meminta aksi merusak yang disengaja. Jam berhenti supaya membaca dialog tidak jadi walkout |
 | Kesabaran **+10%** (sudah dikerjakan) | Anda bilang "kesulitan normal aja dikurangi". Ini satu-satunya angka yang diubah, supaya playtest ketiga mengukur satu hal, bukan dua |
-| Tombol "Mulai" → **level select** untuk mode terakhir, bukan level langsung | Keputusan B supaya tetap ada satu langkah (*mode → level → main*) |
+ | Menu utama: 4 tombol (New Game, Continue, How to play, toggle bahasa) | Diperbaiki 29 September. Satu tombol "Play" tidak bisa membedakan "mulai dari nol" vs "lanjut dari yang terbuka"; dua intent itu butuh dua tombol. New Game menghapus progress (dengan konfirmasi, aturan 11), Continue tidak menghapus dan level yang terbuka tetap terlihat |
+| Kartu mode dipindah ke **layar sendiri** di balik New Game/Continue | Menu utama terlalu penuh dengan tiga kartu mode + tombol. Alurnya `menu → pilih mode → pilih level → main`, Back dari level select kembali ke pilih mode |
+| Tombol Continue **tampil tapi mati** kalau belum ada progress | Layout menu tidak bergeser saat progress bertambah. Tombol yang muncul tiba-tiba setiap kali progress tersimpan membuat pemain harus membaca ulang menu setiap kunjungan |
 | Chip **lebar tetap 1/3**, animasi slide dari kanan 350ms | Chip yang meregang membuat antrean terlihat seperti banner. Lebar tetap + animasi lebih informatif |
 | Kesabaran **dimulai setelah chip tiba** (+1 detik/pelanggan) | Aturan 11: walkout tidak boleh dipicu chip yang masih slide, belum bisa diketuk |
 | `queue__next` teks tetap di bawah strip | Ditunda — belum ada yang memutuskan isi slot kosong |
 | Roster per mode | Belum diputuskan, menunggu playtest |
 | Mode tetap 3, bukan 15 level datar | Sudah ditinjau: 3 x 5 = 15 level juga, mode memetakan ke kelas 7/8/9, dan tangga operator per mode adalah alat keamanan solvability |
+| Skor tertinggi disimpan **per level**, bukan global | `SCORE_BASE` 10/15/20 per mode + roster tumbuh, jadi skor Hard 5 selalu > Easy 1. Global best akan dimenangkan Hard 5 di run pertama dan tidak bisa dikalahkan. |
+| Keluar level **konfirmasi + ke level select** | Aturan 11: hidangan di stand tidak bisa dikembalikan. Ke level select (bukan menu) karena pemain keluar di tengah biasanya ingin level lain mode yang sama. |
+| Tombol mati **harus terlihat mati** | Continue mati abu-abu (`aria-disabled`) bukan disembunyikan. Layout tetap, pemain tahu kapan nyalakan. |
+| Kartu mode **harus selebar tombol Back** | Dilaporkan manual di layar lebar. `.menu__modes` dibatasi `30rem` sementara tombol footer tidak, jadi keduanya tidak rata. Perbaikan (30 September): beri keduanya batas lebar yang sama — `--menu-width: 30rem` + `align-self: center` — bukan membabi buta bikin kartu jadi 100% (akan jadi lamentang di layar 1600px). Tombol Back level select sengaja dibiarkan full-width karena grid level memang mengisi layar. |
 
 **Yang terbukti berasal dari playtest, bukan dari mekanik game:**
 
@@ -114,9 +181,13 @@ Hard L3), isi formulirnya, kirim balik. Sekalian rekam layar 30-60 detik per run
 untuk video demo.
 
 **Cara membuka game di HP:** `python -m http.server 8099 --bind 0.0.0.0 -d .` di
-`C:\Users\ASUS\Documents\cooking_number`, lalu buka `http://192.168.1.6:8099/`
-dari HP pada WiFi yang sama. Harus lewat HTTP, `file://` diblokir CORS. Flag `-d .`
-wajib ada, kalau tidak browser menampilkan *directory listing* dan bukan game.
+`C:\Users\ASUS\Documents\cooking_number`, lalu buka `http://<IP-KAMU>:8099/` dari
+HP pada WiFi yang sama, di mana `<IP-KAMU>` adalah baris "IPv4 Address" di
+`ipconfig` pada adapter Wi-Fi PC. **IP itu berubah** kalau kamu pindah jaringan
+atau DHCP memberi alamat baru, jadi cek ulang tiap kali; `ERR_ADDRESS_UNREACHABLE`
+di HP hampir selalu berarti IP yang diketik sudah tidak benar, bukan server mati.
+Harus lewat HTTP, `file://` diblokir CORS. Flag `-d .` wajib ada, kalau tidak
+browser menampilkan *directory listing* dan bukan game.
 Untuk membuka semua level sekaligus: `localStorage.setItem('cn.progress',
 '{"easy":5,"medium":5,"hard":5}')` lalu reload.
 
@@ -382,6 +453,54 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
 - [x] Angka kesabaran +10% di ketiga mode (Easy 55→53→51→48→46, Medium 48→46→44→41→37, Hard 42→40→36→33→31). Playtest kedua melaporkan selesai dengan bar kesabaran merah di Medium; angka sengaja tidak disentuh lagi sampai playtest ketiga.
 - [x] **Antrean animasi selesai:** chip lebar tetap 1/3 layar, slide-in 350ms dari kanan, FLIP geser kiri, flag `arriving` +1 detik grace, countdown disembunyikan selama animasi. `queue__next` teks tertunda — tidak diputuskan isi slot kosong.
 - [x] **Musik dan efek suara selesai:** loop per level, tombol mute di HUD, 3 SFX (arrive/serve/walkout), disintesis Web Audio API.
+- [x] **Menu utama: 4 tombol + layar pilih mode.** Kartu mode pindah ke layar
+      sendiri, tombol Play diganti New Game (hapus progress, dengan konfirmasi)
+      dan Continue (jangan hapus, level terbuka tetap terlihat). Continue mati
+      kalau belum ada progress. Alur `menu → pilih mode → pilih level → main`.
+      Ditemukan lewat pemeriksaan visual di HP, bukan lewat test.
+- [x] **Volume musik diturunkan ke 35%** (`MUSIC_VOLUME` di `audio.js`). Ditemukan
+      saat playtest: musik loop sepanjang level terlalu keras di speaker HP.
+      Efek suara dibiarkan, peak-nya sudah rendah.
+- [x] **IP di dokumen tidak di-hardcode lagi.** `PLAN.md` dan `PLAYTEST.md` dulu
+      menulis `192.168.1.6`, yang sudah basi. Sekarang keduanya mengarah ke
+      `ipconfig` supaya tidak perlu diubah tiap kali DHCP memberi alamat baru.
+- [x] **Tombol menu di tengah layar.** `margin-top: auto` di `.menu__footer`
+      yang sebelumnya mendorong tombol ke bawah sudah dihapus.
+- [x] **Perbaikan UI 29 September:** tombol mati dibuat abu (Continue),
+      tombol Back pindah ke footer selebar layar, grid level mengisi tinggi
+      layar dengan `.is-locked` yang selama ini tidak punya CSS, dua tombol HUD
+      digabung jadi satu hamburger berisi menu musik + keluar, keluar level
+      dikonfirmasi, tombol "Menu" di overlay selesai jadi "Pilih level", dan
+      skor tertinggi per level tampil di kartu level (key `cn.scores`).
+- [x] **Rasio pelanggan terlayani per level.** Kartu level sekarang menampilkan
+      `{served}/{total} served` di atas baris skor. `recordScore` menerima objek
+      `{score, served, total}`, `bestScore` diganti `bestResult` yang mengembalikan
+      objek `{score, served, total}`, dan `readScores` mengatasi format lama
+      (angka polos) dengan memperlakukannya sebagai `{ score, served: null }`.
+      Rasio dan skor dipertahankan secara independen — skor tertinggi dan rasio
+      terbaik bisa berasal dari run yang berbeda.
+- [x] **Kartu level isi tinggi sel grid.** `flex: 1 1 0` pada `.levels__grid` +
+      `display: flex` pada `<li>` + `flex: 1 1 auto` pada `.level-card`. Kartu
+      sekarang mengambil seluruh tinggi baris `1fr` (3 baris isi 5 kartu). Slack
+      terukur: 0px dari 716px grid, kartu 232px tingginya.
+- [x] **Hapus icon panah di tombol Back.** `←` dari `index.html` dihapus dari
+      kedua layar (pilih mode dan pilih level).
+- [x] **Menu hamburger ke kiri.** `left: 0` menggantikan `right: 0` pada
+      `.game-menu`. Menu panel sekarang muncul di bawah tombol hamburger, sisi
+      kiri, bukan sisi kanan.
+- [x] **Easy lebih cepat:** `ARRIVAL_SECONDS.easy` dari `[15,14,13,12,11]` ke
+      `[10,10,9,9,8]`. Medium/Hard tidak berubah. `timeBudgetSeconds()` ditambah
+      di `difficulty.js` — urutan kesulitan diuji dari anggaran waktu per
+      pelanggan, bukan dari interval kedatangan mentah.
+- [x] **Next level di level 5 → level select.** `else leaveToLevelSelect()` pada
+      `next-level` menggantikan `else backToMenu()`. Overlay level selesai tetap
+      menampilkan tombol "Next level" yang sama.
+- [x] **Kartu mode menyamakan lebar dengan tombol Back** (lihat "Urutan kerja
+      30 September 2026" di atas). Perbaikan: `--menu-width: 30rem` di
+      `styles/base.css`, `.menu__modes` dan `.screen--modes .screen__footer`
+      memakai var itu dan `align-self: center`. Smoke test mengukur lebar dan
+      posisi kedua elemen di viewport 1280px supaya regresi tidak masuk lagi
+      tanpa ada yang menangkapnya.
 - [ ] Uji drag di perangkat asli: apakah drag merebut scroll halaman
 - [ ] Styling akhir dan polish
 

@@ -7,7 +7,115 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+- **Kartu mode di layar pilih mode lebih sempit dan tidak segaris dengan tombol
+  Back di layar lebar.** `.menu__modes` dibatasi `min(100%, 30rem)` (480px)
+  sementara `.screen__footer .btn` memakai `width: 100%`, jadi di layar 1280px+
+  tombol Back membentang sampai tepi layar sementara kartu berhenti di 480px.
+  `.screen--modes` juga tidak punya `align-items`, jadi kartu menempel di kiri
+  saat tombol melebar penuh. Sekarang `.menu__modes` dan
+  `.screen--modes .screen__footer` berbagi `--menu-width` (30rem) dan di-rata
+  tengah. Level select sengaja dibiarkan full-width karena grid-nya memang
+  mengisi layar. Smoke test mengukur lebar dan posisi keduanya di viewport
+  1280px, di mana bug-nya kelihatan (di lebar HP, `min(100%, 30rem)` kolaps ke
+  100% dan tidak ada yang bisa diukur).
+
+### Added
+- **Rasio pelanggan terlayani terbaik di kartu level.** Setiap level yang sudah
+  diselesaikan menampilkan `{served}/{total} served` (EN) atau `{served}/{total}
+  terlayani` (ID) di atas baris skor. Rasio ini adalah ukuran yang jujur tentang
+  sebuah level: skor bisa tinggi dari tiga pelanggan yang dilayani cepat,
+  sementara `6/7` mengatakan seberapa dekat pemain dengan mengosongkan ruangan.
+- **Skor tertinggi per level di kartu level.** Setiap level yang sudah
+  diselesaikan menampilkan "Tertinggi: N" di bawah jumlah pelanggan. Disimpan di
+  key terpisah `cn.scores` (bentuk `{ "easy:1": { score: 180, served: 6, total: 7 } }`),
+  bukan dicampur ke `cn.progress`, supaya satu tidak bisa merusak yang lain.
+  **Dihitung per level**, tidak pernah dibandingkan antar level: `SCORE_BASE` beda
+  per mode (10/15/20) dan roster tumbuh dari 4 ke 8 pelanggan, jadi skor Hard
+  level 5 selalu lebih besar dari Easy level 1. Satu "best global" akan
+  dimenangkan Hard level 5 di percobaan pertama dan tidak akan pernah bisa
+  dikalahkan. New Game ikut menghapus `cn.scores`, karena skor tertinggi di level
+  yang terkunci lagi adalah pencapaian yang tidak bisa dijangkau pemain.
+- **Skor dan rasio terbaik dipertahankan secara independen.** Keduanya berasal
+  dari dua pertanyaan berbeda — skor menghargai kecepatan, rasio menghargai
+  kejujuran menyelesaikan semua pelanggan. Jika hanya menyimpan run dengan skor
+  tertinggi, pemain yang sudah mengosongkan ruangan akan melihat rasio dari run
+  lain yang kebetulan skornya bagus, yang bertentangan dengan makna "hasil
+  terbaik di sini".
+- **Menu dalam level: satu tombol hamburger.** Dua tombol di HUD (hamburger quit
+  dan tombol musik) digabung jadi satu. Ditekan, muncul panel kecil berisi
+  tombol musik (label menyebut aksinya: "Musik: Menyala" saat mati, "Musik: Mati"
+  saat menyala, plus `aria-pressed` untuk statusnya) dan tombol Keluar. Tombol
+  keluar **langsung ke layar level select**, bukan menu, karena pemain yang
+  keluar di tengah level biasanya ingin pilih level lain di mode yang sama.
+- **Konfirmasi sebelum keluar dari level.** "Keluar dari level ini?" dengan
+  jawaban aman "Lanjut bermain" yang mendapat fokus keyboard, dan jam berhenti
+  selama dialog terbuka. Ini aturan 11: hidangan di stand adalah pekerjaan yang
+  tidak bisa dikembalikan, jadi keluar harus disengaja. Dialog ini memakai
+  dialog konfirmasi yang sama dengan dua pertanyaan lain.
+
 ### Changed
+- **Tombol yang mati sekarang terlihat mati.** `.btn:disabled` diberi latar abu
+  (`--plate-shade`), teks abu (`--ink-soft`), tanpa bayangan, tanpa animasi
+  tekan. Sebelumnya hanya `cursor: not-allowed`, jadi Continue yang mati tetap
+  tampak putih seperti tombol hidup — pemain menekannya, tidak terjadi apa-apa,
+  dan tidak tahu apakah tombolnya atau gamenya yang rusak.
+- **Tombol Back di layar pilih mode dan level select pindah ke bawah, selebar
+  layar.** Sebelumnya tombol kecil di header, di samping judul. Sekarang di
+  footer yang menempel ke tepi bawah layar, tempat jempol mengharapkannya.
+- **Kartu level mengisi tinggi layar.** Grid level sekarang mengambil sisa
+  tinggi setelah judul dan tombol Back, dengan tiga baris sama tinggi untuk lima
+  level (baris terakhir satu kartu). Sebelumnya kartu menumpuk di atas dan
+  menyisakan ruang kosong di bawah. Di layar lebar jadi 3 kolom x 2 baris.
+- **Kartu level terkunci sekarang benar-benar terlihat terkunci.** Kelas
+  `is-locked` sudah dipasang view sejak dulu tapi **tidak punya aturan CSS sama
+  sekali**, jadi level terkunci digambar persis seperti level terbuka kecuali
+  glyph gemboknya. Sekarang latar abu, teks abu, tanpa bayangan.
+- **Tombol "Menu" di overlay level selesai jadi "Pilih level"** dan menuju layar
+  level select, bukan menu. Level selesai adalah momen memilih mau main apa
+  berikutnya, dan layar pilih mode satu ketukan lebih jauh.
+- **Tiga pertanyaan konfirmasi berbagi satu dialog dengan satu objek
+  `pendingConfirm`.** Sebelumnya `pendingOrderId` dan `pendingReset` adalah dua
+  variabel terpisah; menambah pertanyaan ketiga (keluar level) sebagai boolean
+  ketiga adalah tempat bug bersembunyi.
+- **Tombol New Game dan Continue di menu utama.** Menu sekarang punya empat
+  tombol: New Game, Continue, How to play, dan toggle bahasa. New Game menghapus
+  progress lalu masuk ke layar pilih mode. Continue melewati penghapusan dan
+  langsung ke layar yang sama, sehingga level yang sudah terbuka tetap terlihat
+  di layar level select. Satu tombol "Play" sebelumnya tidak bisa membedakan
+  kedua niat itu.
+- **Konfirmasi sebelum menghapus progress.** New Game menampilkan dialog
+  "Mulai ulang?" yang menjelaskan apa yang akan dihapus, dengan jawaban aman
+  ("Pertahankan progress") yang mendapat fokus keyboard. Ini mengikuti aturan 11
+  AGENTS.md: menghapus semua level yang sudah selesai adalah tindakan yang tidak
+  bisa diurungkan, jadi harus berupa tombol yang ditekan dengan sengaja, bukan
+  efek samping dari mengetuk yang salah. Kalau belum ada progress, tidak ada yang
+  dihapus sehingga tidak ada dialog yang muncul.
+- **Continue mati kalau belum ada progress.** Tombol tetap terlihat (abu-abu,
+  `aria-disabled`), bukan disembunyikan, supaya tata letak menu tidak bergeser
+  saat progress bertambah.
+- **`hasProgress()` di `src/ui/progress.js`.** Mengembalikan `true` kalau
+  pemain sudah menyelesaikan minimal satu level di mode mana pun.
+- **Tombol Play diganti New Game dan Continue.** Alur: `menu → New Game / Continue
+  → pilih mode → pilih level → main`. `action.start` di i18n diganti jadi
+  `action.newGame` dan `action.continue`.
+- **`showResetConfirm()` dan `showSwitchConfirm()` berbagi satu dialog.** Keduanya
+  menulis ulang judul, isi, dan label kedua tombol setiap kali dipanggil, supaya
+  label "Hapus" dari dialog reset tidak tertinggal di dialog berikutnya yang
+  menanyakan hal berbeda.
+- **Tombol Back di layar level select kembali ke layar pilih mode**
+  (`back-to-modes`), bukan langsung ke menu.
+- **Menu utama: kartu mode dipindah ke layar sendiri.** Menu utama sekarang
+  hanya berisi topi koki, judul, tagline, dan empat tombol di atas. Alurnya
+  `menu → pilih mode → pilih level → main`. Ditemukan lewat inspeksi visual di HP:
+  menu utama terasa penuh dan membingungkan saat ketiga kartu mode tampil
+  bersamaan dengan tombol.
+- **Volume musik diturunkan ke 35%.** `MUSIC_VOLUME = 0.35` di `audio.js`
+  diterapkan ke elemen `<audio>` di `init()`. Volume penuh di speaker HP
+  langsung startling ketika musik mulai di ketukan pertama, dan loop yang
+  tidak berhenti selama level berjalan itu paparan panjang, bukan satu
+  ketukan. Tiga efek suara (datang/sajikan/walkout) tidak diubah — peak-nya
+  sudah 0.06-0.09, relatif pelan, dan mereka feedback yang dibutuhkan pemain.
 - **Aturan hitung diganti ke kaidah operasi.** `×` dan `÷` mengikat lebih kuat
   dari `+` dan `−`, dan unary (`²`, `³`, `√`) menempel pada angka di depannya,
   bukan pada running total. `2 + 3 × 4` kini bernilai 14, bukan 20. Alasan:
