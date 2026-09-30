@@ -19,7 +19,6 @@ import {
   bestResult,
   clearProgress,
   STORAGE_KEY,
-  SCORES_KEY,
 } from '../src/ui/progress.js';
 
 /** A minimal in-memory stand-in for localStorage. */

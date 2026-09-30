@@ -16,17 +16,12 @@
  */
 
 let dropCallback = null;
-let dragReady = false;
 
 /** Where a drag may be dropped. Cached, because it is read on every pointer move. */
 let zones = [];
 
 export function configure(options) {
   dropCallback = options.onDrop;
-}
-
-export function isDragReady() {
-  return dragReady;
 }
 
 /* ------------------------------------------------------------------ *
@@ -189,7 +184,7 @@ const tileFromEvent = (event) => tileFromNode(event.currentTarget);
  * ------------------------------------------------------------------ */
 
 export function init(root = document) {
-  dragReady = installDrag();
+  installDrag();
   refreshZones();
 
   // Delegated, so re-rendering the rack never needs rebinding.
@@ -207,6 +202,4 @@ export function init(root = document) {
       dropCallback?.({ kind: 'serve' }, 'serve', null);
     }
   });
-
-  return { dragReady };
 }

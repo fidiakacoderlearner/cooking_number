@@ -266,16 +266,3 @@ export function formatRecipe(recipeObj, symbolOf = (k) => k) {
 
   return text;
 }
-
-export const EVALUATE = {
-  recipe,
-  evaluate,
-  tryEvaluate,
-  trailingTerm,
-  ingredientCount,
-  operatorKeys,
-  unaryOperatorKeys,
-  hasUnary,
-  traceValues,
-  formatRecipe,
-};

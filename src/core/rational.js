@@ -268,37 +268,3 @@ export function format(a) {
 export function toKey(a) {
   return `${a.n}/${a.d}`;
 }
-
-export const RATIONAL = {
-  ZERO,
-  ONE,
-  TWO,
-  rat,
-  isRational,
-  add,
-  sub,
-  mul,
-  div,
-  neg,
-  abs,
-  equals,
-  compare,
-  isZero,
-  isFiniteValue,
-  isInteger,
-  isNegative,
-  min,
-  max,
-  pow,
-  sqrt,
-  isDisplayNice,
-  toFractionString,
-  toDecimalString,
-  toDisplayString,
-  hasTerminatingDecimal,
-  format,
-  toKey,
-  gcd,
-  NICE_DENOMINATORS,
-  MAX_DISPLAY_NUMERATOR,
-};

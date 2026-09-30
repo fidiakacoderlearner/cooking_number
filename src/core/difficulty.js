@@ -14,8 +14,6 @@
  * gameplay logic.
  */
 
-import { rat } from './rational.js';
-
 /** Customers owed per level, shared by all three modes. */
 export const CUSTOMERS_PER_LEVEL = Object.freeze([4, 5, 6, 7, 8]);
 
@@ -368,24 +366,3 @@ export function timeBudgetSeconds(mode, level) {
   }
   return (arrivalSeconds + patienceSeconds(mode, level)) / roster;
 }
-
-export const DIFFICULTY = {
-  MODES,
-  MODE_LIST,
-  LEVELS_PER_MODE,
-  CUSTOMERS_PER_LEVEL,
-  MAX_ON_SCREEN,
-  ARRIVAL_JITTER,
-  ARRIVAL_DECAY,
-  ARRIVAL_FLOOR,
-  getBand,
-  customersForLevel,
-  baseArrivalSeconds,
-  patienceSeconds,
-  arrivalGapSeconds,
-  minArrivalGapSeconds,
-  timeBudgetSeconds,
-  isValidMode,
-  isValidLevel,
-  rat,
-};

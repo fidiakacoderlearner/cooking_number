@@ -778,25 +778,3 @@ export function render(state) {
 }
 
 export { dom };
-
-export const VIEW = {
-  cacheDom,
-  showScreen,
-  showOverlay,
-  showSwitchConfirm,
-  render,
-  renderHud,
-  renderChips,
-  renderStand,
-  renderRack,
-  renderLevelGrid,
-  renderModeCards,
-  applyStaticStrings,
-  resetChipArrivals,
-  feedback,
-  toast,
-  bump,
-  shake,
-  steamBurst,
-  dom,
-};

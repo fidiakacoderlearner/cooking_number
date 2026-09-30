@@ -589,12 +589,3 @@ export function assertPuzzleSolvable(puzzle, band) {
   }
   return true;
 }
-
-export const GENERATOR = {
-  generatePuzzle,
-  collectIngredients,
-  displaySolution,
-  assertPuzzleSolvable,
-  makeRng,
-  GenerationError,
-};

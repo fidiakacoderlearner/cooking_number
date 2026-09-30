@@ -19,8 +19,6 @@
  * sites do not move.
  */
 
-import { t } from './i18n.js';
-
 const MUSIC = 'assets/placeholder/theme.mp3';
 const STORAGE_KEY = 'cn.muted';
 

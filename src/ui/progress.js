@@ -223,16 +223,3 @@ export function bestResult(mode, level, storage = defaultStorage()) {
 }
 
 export { STORAGE_KEY, SCORES_KEY };
-
-export const PROGRESS = {
-  readProgress,
-  writeProgress,
-  completeLevel,
-  unlockedFor,
-  hasProgress,
-  recordScore,
-  bestResult,
-  clearProgress,
-  STORAGE_KEY,
-  SCORES_KEY,
-};

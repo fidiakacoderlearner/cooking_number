@@ -650,35 +650,3 @@ export function resetLevel(state, options = {}) {
   state.lastResult = null;
   return state;
 }
-
-export const STATE = {
-  createState,
-  pickCustomer,
-  startCooking,
-  clearStand,
-  pushTile,
-  undo,
-  tick,
-  serveTo,
-  resetLevel,
-  findOrder,
-  activeOrders,
-  waitingOrders,
-  ordersServed,
-  ordersLost,
-  cookingOrder,
-  standIngredients,
-  expectedKind,
-  canAccept,
-  expressionToRecipe,
-  runningTotal,
-  hasDish,
-  isCorrect,
-  pointsForCustomer,
-  secondsToNextCustomer,
-  hasMoreCustomers,
-  PHASES,
-  ORDER_STATUS,
-  SCORE_BASE,
-  SPEED_BONUS_RATIO,
-};

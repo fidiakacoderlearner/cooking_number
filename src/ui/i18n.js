@@ -37,22 +37,9 @@ const STRINGS = {
     'queue.nextSoon': 'Next one is due',
     'queue.nextLast': 'Last customer of this level',
     'queue.full': 'The stand is full, they will wait',
-    'queue.empty': 'Waiting for the first customer...',
 
-    'customer.wants': 'wants {target}',
-    'customer.cooking': 'Cooking for {target}',
-    'customer.served': 'Served!',
-    'customer.walkedWrong': '{target} was ordered, not {value}',
-    'customer.walkedSlow': 'Ran out of patience',
-    'customer.select': 'Select this customer',
-    'customer.serveTo': 'Serve to {target}',
-    'customer.timeLeft': '{seconds} seconds left',
-
-    'stand.empty': 'The stand is empty',
     'stand.pickCustomer': 'Tap a customer to start cooking.',
-    'stand.ready': 'Dish ready: {value}',
     'stand.dropHere': 'Tap to serve',
-    'stand.running': 'Running total',
 
     'op.add': 'plus',
     'op.sub': 'minus',
@@ -66,7 +53,6 @@ const STRINGS = {
     'work.noCustomer': 'Cook for a customer first.',
     'work.standBusy': 'Finish or clear the dish on the stand first.',
     'work.notReady': 'The dish is not finished yet.',
-    'work.nextNumber': 'Now pick a number tile.',
     'work.nextOperator': 'Now pick an operator tile.',
     'work.unaryFirst': 'Start with a number, then you can use this.',
     'work.invalidDivision': 'Cannot divide by zero.',
@@ -109,7 +95,6 @@ const STRINGS = {
     'action.toggleLang': 'Change language',
     'action.toggleMute': 'Mute sound',
     'action.unmute': 'Unmute sound',
-    'action.backToMenu': 'Back to menu',
 
     // The game menu, opened from the hamburger mid-level.
     'gameMenu.open': 'Game menu',
@@ -130,7 +115,6 @@ const STRINGS = {
 
     'result.served': 'Right on! +{points} points ({pace}).',
     'result.lost': 'That customer walked out. No points.',
-    'result.points': '+{points}',
     'result.pace.blazing': 'blazing',
     'result.pace.fast': 'fast',
     'result.pace.steady': 'steady',
@@ -139,11 +123,8 @@ const STRINGS = {
     'overlay.levelDone': 'Level complete!',
     'overlay.nextLevel': 'Next level',
     'overlay.chooseLevel': 'Choose level',
-    'overlay.menu': 'Menu',
-    'overlay.retry': 'Try again',
     'overlay.summary': 'You served {served} of {total} customers.',
     'overlay.levelScore': 'You scored {score} points in this level.',
-    'overlay.totalScore': 'Total score: {score}.',
     'overlay.allDone': 'Every customer served!',
 
     'toast.nothingToUndo': 'Nothing to undo.',
@@ -182,22 +163,9 @@ const STRINGS = {
     'queue.nextSoon': 'Pelanggan berikutnya sebentar lagi',
     'queue.nextLast': 'Pelanggan terakhir level ini',
     'queue.full': 'Stand penuh, mereka menunggu',
-    'queue.empty': 'Menunggu pelanggan pertama...',
 
-    'customer.wants': 'mau {target}',
-    'customer.cooking': 'Sedang dimasak untuk {target}',
-    'customer.served': 'Tersaji!',
-    'customer.walkedWrong': 'Pesanannya {target}, bukan {value}',
-    'customer.walkedSlow': 'Kesabarannya habis',
-    'customer.select': 'Pilih pelanggan ini',
-    'customer.serveTo': 'Sajikan ke {target}',
-    'customer.timeLeft': 'Sisa {seconds} detik',
-
-    'stand.empty': 'Stand masih kosong',
     'stand.pickCustomer': 'Ketuk pelanggan untuk mulai memasak.',
-    'stand.ready': 'Hidian siap: {value}',
     'stand.dropHere': 'Ketuk untuk sajikan',
-    'stand.running': 'Total berjalan',
 
     'op.add': 'tambah',
     'op.sub': 'kurang',
@@ -211,7 +179,6 @@ const STRINGS = {
     'work.noCustomer': 'Masak dulu untuk salah satu pelanggan.',
     'work.standBusy': 'Selesaikan atau bersihkan hidangan di stand dulu.',
     'work.notReady': 'Hidingannya belum jadi.',
-    'work.nextNumber': 'Sekarang pilih kartu angka.',
     'work.nextOperator': 'Sekarang pilih kartu operator.',
     'work.unaryFirst': 'Mulai dari angka, baru operator ini bisa dipakai.',
     'work.invalidDivision': 'Tidak bisa membagi dengan nol.',
@@ -248,7 +215,6 @@ const STRINGS = {
     'action.toggleLang': 'Ganti bahasa',
     'action.toggleMute': 'Matikan suara',
     'action.unmute': 'Nyalakan suara',
-    'action.backToMenu': 'Kembali ke menu',
 
     'gameMenu.open': 'Menu permainan',
     'gameMenu.musicOn': 'Musik: Menyala',
@@ -268,7 +234,6 @@ const STRINGS = {
 
     'result.served': 'Tepat sekali! +{points} poin ({pace}).',
     'result.lost': 'Pelanggan itu pergi. Tidak dapat poin.',
-    'result.points': '+{points}',
     'result.pace.blazing': 'ngebut',
     'result.pace.fast': 'cepat',
     'result.pace.steady': 'mantap',
@@ -277,11 +242,8 @@ const STRINGS = {
     'overlay.levelDone': 'Level selesai!',
     'overlay.nextLevel': 'Level berikutnya',
     'overlay.chooseLevel': 'Pilih level',
-    'overlay.menu': 'Menu',
-    'overlay.retry': 'Coba lagi',
     'overlay.summary': 'Kamu melayani {served} dari {total} pelanggan.',
     'overlay.levelScore': 'Kamu mendapat {score} poin di level ini.',
-    'overlay.totalScore': 'Skor total: {score}.',
     'overlay.allDone': 'Semua pelanggan tersaji!',
 
     'toast.nothingToUndo': 'Tidak ada yang bisa diurutkan.',
@@ -337,13 +299,3 @@ export function t(key, params) {
   const value = STRINGS[current]?.[key] ?? STRINGS.en[key] ?? key;
   return interpolate(value, params);
 }
-
-export const I18N = {
-  t,
-  getLanguage,
-  setLanguage,
-  toggleLanguage,
-  restoreLanguage,
-  LANGUAGES,
-  DEFAULT_LANGUAGE,
-};

@@ -100,6 +100,39 @@ push setelah), dan GitHub Pages diganti Vercel.
    Alias `cooking-number.vercel.app` bisa dipasang di Dashboard → Domains kalau
    mau URL yang lebih pendek.
 
+4. **Bersih-bersih kode dan dua gate baru — [x] selesai.** Dikerjakan 30 September
+   2026 atas permintaan pengguna setelah memindai placeholder. Semua perubahan
+   bersifat zero-behavior-change: test tetap 160/160, smoke test hijau penuh.
+   Rinciannya ada di `CHANGELOG.md` bagian "Removed" dan "Fixed".
+   - **Hapus 9 export mati:** delapan barrel `export const X = { ... }` di
+     `core/evaluate.js`, `core/rational.js`, `core/difficulty.js`,
+     `core/generator.js`, `ui/view.js`, `ui/state.js`, `ui/progress.js`,
+     `ui/i18n.js` plus `isDragReady` di `ui/drag.js`. Tidak satu pun diimport
+     di mana pun — hanya salinan duplikat dari nama yang sudah di-export
+     satu per satu.
+   - **Hapus 18 key i18n mati** di kedua bahasa (sisa 84 key × 2). Catatan
+     penting: `work.nextNumber` terlewat di pemeriksaan pertama karena
+     `controller.js` memanggil `t('work.nextOperator')` (suffix **Operator**,
+     bukan `Number`) — dua-duanya pernah ada, hanya `nextOperator` yang masih
+     dipanggil. `result.points` juga mati karena poin masuk lewat placeholder
+     `{points}` di `result.served`, bukan lewat `t('result.points')`.
+   - **Perbaiki label antrean** yang tidak ikut ganti bahasa: `aria-label="Customers"`
+     hardcoded di `index.html` diganti `data-i18n-aria="queue.label"`. Key
+     `queue.label` sebelumnya tidak terpakai, kini dipakai lagi di EN dan ID.
+   - **Sinkronkan teks static** di `index.html` yang menyimpang dari i18n
+     (`stand.dropHere`, `rules.order2`). `confirm.switchBody` sengaja tidak
+     disentuh karena nilai i18n-nya memakai placeholder `{target}`/`{tiles}` —
+     teks static tanpa placeholder lebih baik daripada teks kosong kalau JS gagal.
+   - **`check-imports.js` beralih ke scan filesystem.** Daftar 21 path hardcoded
+     diganti `readdirSync` menelusuri `src/`, `test/`, `scripts/`. Daftar lama
+     pernah tertinggal `src/ui` selama dua rilis (tercatat di CHANGELOG), dan
+     scan yang lebih luas langsung menangkap dua import mati yang sebelumnya
+     di luar jangkauan gate: `audio.js` (`t`) dan `difficulty.js` (`rat`,
+     regresi dari penghapusan barrel).
+   - **`check-styles.js` gagal kalau ada var tak terpakai.** Sebelumnya hanya
+     dicetak ke stdout lalu exit 0. `--tomato-dark` (satu-satunya var tak
+     terpakai) ikut dihapus.
+
 ---
 
 Status saat plan ini ditulis (**30 September 2026**, sisa ±18 hari ke deadline):
@@ -545,6 +578,15 @@ Detail dan urutan pengerjaannya ada di bagian "Sesi berikutnya" di atas.
       7/8/9 (PRD §5.1) dan kartu mode sudah menampilkannya, dan tangga operator
       per mode adalah alat keamanan solvability — digabung jadi satu, level 1
       harus `+ -` untuk semua orang dan akar baru muncul di level akhir.
+- [ ] **Gate key i18n tak terpakai — ditunda.** `check-imports.js` sekarang
+      memindai filesystem, tapi belum memeriksa key i18n. Scan sederhana
+      (`'key'` sebagai quoted string di luar `i18n.js`, plus `data-i18n` di
+      `index.html`) sudah cukup untuk key statis, dan tidak akan salah menandai
+      sentinel `confirm.switch` (yang muncul sebagai quoted string di `state.js`).
+      Yang perlu diperhatikan: `result.pace.*` dipanggil lewat `paceFor`,
+      `` t(`mode.${mode}`) `` memakai template literal, dan `labelKey: 'op.*'`
+      berasal dari `assets.js`. 84 key × 2 bahasa sekarang bersih, jadi ini
+      bisa menunggu playtest ketiga selesai — blocker ada di atas, bukan di sini.
 
 ## Di luar scope
 

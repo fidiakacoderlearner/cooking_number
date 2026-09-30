@@ -1,66 +1,103 @@
-import fs from 'node:fs';
-
 /**
- * Every module the gate is supposed to cover. The UI used to be missing from
- * this list entirely, which is how two dead imports survived in src/ui.
+ * Unused import detection with directory-scan module list.
+ *
+ * The old version had a hand-maintained file list. `src/ui` was missing for two
+ * releases, which is how two unused imports survived (CHANGELOG.md:441).
+ * Reading the module list off the filesystem makes a new file covered the moment
+ * it is created — the list cannot go stale.
+ *
+ *   node scripts/check-imports.js
  */
-const files = [
-  'src/core/rational.js',
-  'src/core/operators.js',
-  'src/core/evaluate.js',
-  'src/core/difficulty.js',
-  'src/core/generator.js',
-  'src/ui/progress.js',
-  'src/ui/i18n.js',
-  'src/ui/assets.js',
-  'src/ui/state.js',
-  'src/ui/view.js',
-  'src/ui/drag.js',
-  'src/ui/controller.js',
-  'src/ui/app.js',
-  'scripts/inspect-puzzles.js',
-  'test/rational.test.js',
-  'test/evaluate.test.js',
-  'test/generator.test.js',
-  'test/difficulty.test.js',
-  'test/progress.test.js',
-  'test/state.test.js',
-];
 
-let problems = 0;
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-for (const file of files) {
-  const source = fs.readFileSync(file, 'utf8');
-  const importBlocks = [...source.matchAll(/^import[\s\S]*?from\s+'[^']+';$/gm)];
-  const imported = [];
-  for (const block of importBlocks) {
-    const text = block[0];
-    const namespace = text.match(/^import\s+\*\s+as\s+(\w+)/);
-    if (namespace) {
-      imported.push(namespace[1]);
-      continue;
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Directories that hold first-party modules. */
+const SOURCE_DIRS = ['src', 'test', 'scripts'];
+
+/** Every `.js` file under the source directories, sorted for a stable report. */
+function sourceFiles() {
+  const found = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile() && entry.name.endsWith('.js')) found.push(full);
     }
-    const named = text.match(/\{([\s\S]*?)\}/);
-    if (named) {
-      for (const part of named[1].split(',')) {
-        const name = part.trim().split(/\s+as\s+/).pop();
-        if (name) imported.push(name);
-      }
-    }
+  };
+  for (const dir of SOURCE_DIRS) {
+    const full = path.join(root, dir);
+    if (fs.existsSync(full)) walk(full);
   }
-
-  const body = source.replace(/^import[\s\S]*?from\s+'[^']+';$/gm, '');
-  const unused = imported.filter((name) => {
-    const pattern = new RegExp(`\\b${name}\\b`);
-    return !pattern.test(body);
-  });
-
-  if (unused.length) {
-    problems += 1;
-    console.log(`${file.padEnd(28)} UNUSED: ${unused.join(', ')}`);
-  } else {
-    console.log(`${file.padEnd(28)} clean (${imported.length} imports)`);
-  }
+  return found.sort();
 }
 
-console.log(problems === 0 ? '\nNo unused imports.' : `\n${problems} file(s) with unused imports.`);
+/** The `import ...` statements in a file, matched as whole lines. */
+function importBlocks(source) {
+  return [...source.matchAll(/^import[\s\S]*?from\s+'[^']+';$/gm)].map((match) => match[0]);
+}
+
+/** Strip the import block, leaving only the body that should reference things. */
+function bodyOf(source) {
+  return source.replace(/^import[\s\S]*?from\s+'[^']+';$/gm, '');
+}
+
+/**
+ * The names a file pulls in.
+ *
+ * A namespace import is reported under its own local name, so `import * as S`
+ * is checked as `S`. `check-imports` only has to prove the local name appears
+ * somewhere in the body, which is the same thing the caller has to do anyway.
+ */
+function importedNames(source) {
+  const names = [];
+  for (const block of importBlocks(source)) {
+    const namespace = block.match(/^import\s+\*\s+as\s+(\w+)/);
+    if (namespace) {
+      names.push(namespace[1]);
+      continue;
+    }
+    const named = block.match(/\{([\s\S]*?)\}/);
+    if (!named) continue;
+    for (const part of named[1].split(',')) {
+      const name = part.trim().split(/\s+as\s+/).pop();
+      if (name) names.push(name.trim());
+    }
+  }
+  return names;
+}
+
+function main() {
+  const files = sourceFiles();
+  if (files.length === 0) {
+    console.error('no .js files found under src/, test/ or scripts/');
+    process.exit(1);
+  }
+
+  let problems = 0;
+
+  for (const file of files) {
+    const source = fs.readFileSync(file, 'utf8');
+    const body = bodyOf(source);
+    const label = path.relative(root, file);
+
+    const unusedImports = importedNames(source).filter(
+      (name) => !new RegExp(`\\b${name}\\b`).test(body),
+    );
+    if (unusedImports.length) {
+      problems += 1;
+      console.log(`${label.padEnd(28)} UNUSED IMPORT: ${unusedImports.join(', ')}`);
+    } else {
+      console.log(`${label.padEnd(28)} clean`);
+    }
+  }
+
+  console.log(`\n${files.length} file, ${problems} dengan import mati.`);
+  if (problems) process.exit(1);
+  console.log('Semua import dipakai.');
+}
+
+main();

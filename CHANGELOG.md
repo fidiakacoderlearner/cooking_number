@@ -7,6 +7,72 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Removed
+- **Sembilan export mati.** `EVALUATE`, `RATIONAL`, `DIFFICULTY`, `GENERATOR`,
+  `VIEW`, `STATE`, `PROGRESS`, `I18N` (delapan `export const X = { ... }` yang
+  hanya половивah salinan nama yang sudah di-export satu per satu) dan
+  `isDragReady` di `drag.js`. Tidak satu pun pernah diimport. Semuanya muncul
+  karena tidak ada gate yang melihat export — `check-imports.js` hanya
+  memeriksa import, dan itu yang membuat 9 file ini bisa menumpuk tanpa terlihat.
+  Menghapus barrel `DIFFICULTY` membuat import `rat` di `difficulty.js` ikut
+  mati, jadi import itu ikut dibuang.
+- **Dua puluh empat baris string i18n mati** (18 key × EN dan ID). Key yang
+  tidak lagi dirujuk siapa pun: `queue.empty`, `customer.wants`,
+  `customer.cooking`, `customer.served`, `customer.walkedWrong`,
+  `customer.walkedSlow`, `customer.select`, `customer.serveTo`,
+  `customer.timeLeft`, `stand.empty`, `stand.ready`, `stand.running`,
+  `work.nextNumber`, `result.points`, `action.backToMenu`, `overlay.menu`,
+  `overlay.retry`, `overlay.totalScore`. Sisa i18n: 84 key × 2 bahasa.
+  - `work.nextNumber` terlewat di pemeriksaan pertama karena `controller.js`
+    memanggil `t('work.nextOperator')` — suffix **Operator**, bukan `Number`.
+    Dua-duanya pernah ada; hanya `nextOperator` yang masih dipanggil.
+  - `result.points` mati karena poin masuk lewat placeholder `{points}` di
+    `result.served`, bukan lewat `t('result.points')`.
+- **Import `SCORES_KEY` di `test/progress.test.js`** dan **import `t` di
+  `audio.js`**. Keduanya sudah mati sebelum commit ini; `test/progress.test.js`
+  baru ketahuan karena list file `check-imports.js` masih memuatnya, dan
+  `audio.js` baru ketahuan karena file itu tidak pernah ada di list itu.
+- **Variabel CSS `--tomato-dark`** di `styles/base.css`. Tidak ada `var(--tomato-dark)`
+  di mana pun; palet punya `--tomato` dan warna gelapnya tidak pernah dipakai.
+- **State `dragReady` di `drag.js`.** Setelah `isDragReady()` dihapus, variabel
+  modul `dragReady` jadi hanya ditulis lalu dikembalikan tanpa ada yang membaca:
+  `init()` mengembalikan `{ dragReady }`, tapi `controller.js` mengabaikan nilai
+  balik itu. Variabel, assignment-nya, dan nilai balik `init()` ikut dihapus.
+  `installDrag()` masih mengembalikan boolean (false kalau `window.interact` tidak
+  ada) karena itu yang menyatakan apa yang terjadi, cuma tidak ada yang menangkap
+  nilainya — jadi `init()` memanggilnya tanpa menyimpan hasilnya.
+
+### Fixed
+- **Label antrean pelanggan tidak ikut ganti bahasa.** `index.html` menulis
+  `aria-label="Customers"` langsung di markup, jadi section antrean selalu
+  terbaca "Customers" bahkan setelah toggle ke Indonesia — pelanggaran aturan 8.
+  Sekarang `data-i18n-aria="queue.label"`, dan `queue.label` (yang sebelumnya
+  tidak terpakai) dipakai lagi di kedua bahasa.
+- **Teks static di `index.html` menyimpang dari i18n.** Tiga tempat menulis
+  teks Inggris yang tidak sama dengan nilai di `i18n.js`:
+  - `stand.dropHere` (hint piring): HTML bilang "Drag the dish to a customer",
+    i18n bilang "Tap to serve". Karena drag-serve sudah dihapus, teks static
+    itu mengarahkan pemain ke jalur yang sudah tidak ada.
+  - `rules.order2` (aturan kaidah operasi): HTML punya klausa tambahan
+    "and 16 gives &radic;4" yang tidak ada di i18n, jadi sebelum JS memuat
+    aturan main menampilkan contoh yang berbeda dari yang terjadi setelahnya.
+  - `confirm.switchBody` **sengaja tidak disentuh**: nilai i18n-nya memakai
+    placeholder `{target}` dan `{tiles}`, jadi teks static tanpa placeholder
+    justru lebih baik daripada teks kosong kalau JS gagal memuat.
+- **`check-imports.js` sekarang memindai filesystem, bukan daftar hardcoded.**
+  Daftar 21 path-nya pernah_bnMedal tertinggal: `src/ui` tidak ada selama dua
+    rilis, dan itulah cara dua import mati bertahan (`CHANGELOG.md` mencatatnya).
+    Sekarang `readdirSync` menelusuri `src/`, `test/`, dan `scripts/`, jadi file
+    baru otomatis tercakup dan daftarnya tidak bisa basi. `vendor/` sengaja
+    tidak dipindai: `interact.min.js` adalah bundel pihak ketiga dan tidak ada
+    aturan di sini yang ditulis untuk kode ter-minify. Efek sampingnya langsung
+    terlihat — scan yang lebih luas langsung menangkap dua import mati yang
+    selama ini di luar jangkauan gate (`audio.js` dan `difficulty.js`).
+- **`check-styles.js` gagal kalau ada variabel CSS tak terpakai.** Sebelumnya
+  `--tomato-dark` hanya dicetak ke baris "Tidak dipakai" lalu script keluar 0,
+  jadi `npm run check` hijau padahal ada warna yang tidak pernah dipanggil.
+  Sekarang variabel tak terpakai `exit 1`, sama perlunya dengan variabel hilang.
+
 ### Added
 - **Game live di Vercel.** `https://cookingnumber.vercel.app/` — hosting
   statis gratis, repo GitHub tetap **private** (Vercel bisa deploy repo
